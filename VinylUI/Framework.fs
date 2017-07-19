@@ -38,7 +38,7 @@ type Binding = {
     SetView: obj -> unit
 }
 
-module Framework =
+module Model =
     let changes (original: 'a) (updated: 'a) =
         typedefof<'a>.GetProperties()
         |> Seq.choose (fun p ->
@@ -50,7 +50,7 @@ module Framework =
                 None
         )
 
-    let permuteModel (model: 'Model) propertyName value =
+    let permute (model: 'Model) propertyName value =
         let t = typedefof<'Model>
         let ctor = t.GetConstructors().[0]
         let props = t.GetProperties()
@@ -65,6 +65,7 @@ module Framework =
                     prop.GetValue model)
         ctor.Invoke(args) :?> 'Model
 
+module Framework =
     let start (binder: 'View -> 'Model -> Binding list) (events: 'View -> IObservable<'Event> list) dispatcher (view: 'View) (model: 'Model) =
         let error = fun(exn, _) -> ExceptionDispatchInfo.Capture(exn).Throw()
 
@@ -75,7 +76,7 @@ module Framework =
         // subscribe to control changes to update the model
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
-                currentModel <- permuteModel currentModel binding.ModelProperty.Name value))
+                currentModel <- Model.permute currentModel binding.ModelProperty.Name value))
 
         let eventStream = (events view).Merge()
 
@@ -86,7 +87,7 @@ module Framework =
                     let newModel = eventHandler currentModel
                     // update bindings for model changes
                     newModel
-                        |> changes currentModel
+                        |> Model.changes currentModel
                         |> Seq.iter (fun (prop, value) ->
                             bindings
                             |> Seq.filter (fun b -> b.ModelProperty = prop)

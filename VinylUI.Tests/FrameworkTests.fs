@@ -11,6 +11,6 @@ type Record = {
 
 [<Test>]
 let ``permuteModel creates new model with new property value``() =
-    let r = { StringProperty = "nonsense"; IntProperty = 7 }
-    let n = Framework.permuteModel r "StringProperty" "test"
-    n |> shouldEqual { StringProperty = "test"; IntProperty = 7 }
+    let before = { StringProperty = "before"; IntProperty = 7 }
+    let after = Model.permute before "StringProperty" "after"
+    after |> shouldEqual { StringProperty = "after"; IntProperty = 7 }
