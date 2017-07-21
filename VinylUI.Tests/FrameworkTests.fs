@@ -35,3 +35,21 @@ let ``Model.permute creates new model with new property value``() =
 
     let newInt = Model.permute original "Number" 7
     newInt |> shouldEqual { original with Number = 7 }
+
+[<Test>]
+let ``Model.updateView updates all bindings for a property``() =
+    let mutable boundString1 = null
+    let mutable boundString2 = null
+    let mutable boundNumber = null
+    let bindings = [
+        { ModelProperty = Record.TextProperty; SetView = (fun v -> boundString1 <- v); ViewChanged = null }
+        { ModelProperty = Record.NumberProperty; SetView = (fun v -> boundNumber <- v); ViewChanged = null }
+        { ModelProperty = Record.TextProperty; SetView = (fun v -> boundString2 <- v); ViewChanged = null }
+    ]
+
+    let newValue = box "test"
+    Model.updateView bindings [Record.TextProperty, newValue]
+
+    boundString1 |> shouldEqual newValue
+    boundString2 |> shouldEqual newValue
+    boundNumber |> shouldEqual null

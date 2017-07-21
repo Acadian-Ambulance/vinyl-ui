@@ -36,6 +36,12 @@ module Model =
                     prop.GetValue model)
         ctor.Invoke(args) :?> 'Model
 
+    let updateView bindings changes =
+        changes |> Seq.iter (fun (prop, value) ->
+            bindings
+            |> Seq.filter (fun b -> b.ModelProperty = prop)
+            |> Seq.iter (fun b -> b.SetView value))
+
 module Framework =
     let start (binder: 'View -> 'Model -> Binding list) (events: 'View -> IObservable<'Event> list) dispatcher (view: 'View) (model: 'Model) =
         let error = fun(exn, _) -> ExceptionDispatchInfo.Capture(exn).Throw()
@@ -56,13 +62,7 @@ module Framework =
             | Sync eventHandler ->
                 try
                     let newModel = eventHandler currentModel
-                    // update bindings for model changes
-                    newModel
-                        |> Model.changes currentModel
-                        |> Seq.iter (fun (prop, value) ->
-                            bindings
-                            |> Seq.filter (fun b -> b.ModelProperty = prop)
-                            |> Seq.iter (fun b -> b.SetView value))
+                    newModel |> Model.changes currentModel |> Model.updateView bindings
                     // for async, this will need to merge the changes with currentModel
                     currentModel <- newModel
                 with exn -> error(exn, event)
