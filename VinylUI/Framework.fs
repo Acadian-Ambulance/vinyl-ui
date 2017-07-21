@@ -64,13 +64,20 @@ module Framework =
                 try
                     let newModel = eventHandler currentModel
                     newModel |> Model.changes currentModel |> Model.updateView bindings
-                    // for async, this will need to merge the changes with currentModel
                     currentModel <- newModel
                 with exn -> error(exn, event)
             | Async eventHandler ->
                 Async.StartWithContinuations(
-                    computation = eventHandler currentModel,
-                    continuation = ignore, // todo
+                    computation = async {
+                        let originalModel = currentModel
+                        let! newModel = eventHandler originalModel
+                        return newModel |> Model.changes originalModel
+                    },
+                    continuation = (fun changes ->
+                        changes |> Model.updateView bindings
+                        changes |> Seq.iter (fun (prop, value) ->
+                            currentModel <- Model.permute currentModel prop.Name value)
+                    ),
                     exceptionContinuation = (fun exn -> error(exn, event)),
                     cancellationContinuation = ignore))
     #if DEBUG
