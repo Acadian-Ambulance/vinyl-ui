@@ -1,6 +1,7 @@
 ﻿namespace VinylUI
 
 open System
+open System.ComponentModel
 open System.Reflection
 open FSharp.Quotations
 open FSharp.Quotations.Patterns
@@ -185,3 +186,31 @@ module BindingPatterns =
         | Sequential (BindExpression head, BindExpressions tail) -> Some <| head :: tail
         | BindExpression binding -> Some [binding]
         | _ -> None
+
+
+type BindingProxy(initValue) =
+    let mutable value = initValue
+    let modelChanged = Event<_,_>()
+    let viewChanged = Event<obj>()
+
+    interface INotifyPropertyChanged with
+        [<CLIEvent>]
+        member this.PropertyChanged = modelChanged.Publish
+    member this.ViewChanged = viewChanged.Publish
+
+    /// Used for databinding to the view
+    member this.Value
+        with get () = value
+        and set v = viewChanged.Trigger v
+
+    member this.SetView v =
+        value <- v
+        modelChanged.Trigger(null, PropertyChangedEventArgs("Value"))
+
+    static member Property = typedefof<BindingProxy>.GetProperty("Value")
+
+type Binding = {
+    ModelProperty: PropertyInfo
+    ViewChanged: IObservable<obj>
+    SetView: obj -> unit
+}
