@@ -69,7 +69,7 @@ module DataBind =
         let source, property =
             match sourceExpr with
             | BindingPatterns.PropertyExpression (source, property) -> (source, property)
-            | _ -> failwith "Expression must select a property of an INotifyPropertyChanged type"
+            | _ -> failwith "Expression must a property expression"
         let cast (sourceVal: obj) = sourceVal :?> 'a
         onChanged (property.GetValue source |> cast)
         {
