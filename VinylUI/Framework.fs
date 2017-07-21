@@ -43,19 +43,20 @@ module Model =
             |> Seq.iter (fun b -> b.SetView value))
 
 module Framework =
-    let start (binder: 'View -> 'Model -> Binding list) (events: 'View -> IObservable<'Event> list) dispatcher (view: 'View) (model: 'Model) =
+    let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
         let error = fun(exn, _) -> ExceptionDispatchInfo.Capture(exn).Throw()
 
-        let bindings = binder view model
+        let bindings = binder view initialModel
 
-        let mutable currentModel = model
+        let mutable currentModel = initialModel
 
         // subscribe to control changes to update the model
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
                 currentModel <- Model.permute currentModel binding.ModelProperty.Name value))
 
-        let eventStream = (events view).Merge()
+        let eventList : IObservable<'Event> list = events view
+        let eventStream = eventList.Merge()
 
         Observer.Create(fun event ->
             match dispatcher event with
