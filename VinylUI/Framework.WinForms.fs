@@ -2,6 +2,7 @@
 
 open System.Reflection
 open System.Windows.Forms
+open FSharp.Quotations.Patterns
 open Microsoft.FSharp.Quotations
 open VinylUI
 
@@ -48,13 +49,13 @@ module DataBind =
 
     /// Creates bindings from a quotation of statements, where each statement is an assignment to
     /// a view property from a model property.
-    let fromExpr (assignExprs: Expr) =
+    let rec fromExpr (assignExprs: Expr) =
         match assignExprs with
-        | BindingPatterns.BindExpressions bindInfos ->
-            bindInfos |> List.map (fun bindInfo ->
-                let proxyBindInfo, binding = bindInfo.CreateProxyBinding()
-                createBinding proxyBindInfo |> ignore
-                binding)
+        | Sequential (head, tail) -> List.append (fromExpr head) (fromExpr tail)
+        | BindingPatterns.BindExpression bindInfo ->
+            let proxyBindInfo, binding = bindInfo.CreateProxyBinding()
+            createBinding proxyBindInfo |> ignore
+            [binding]
         | e -> failwithf "Unrecognized binding expression: %A." e
 
     /// Binds a model property to a changed handler function.

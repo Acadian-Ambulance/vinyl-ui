@@ -181,12 +181,6 @@ module BindingPatterns =
             }
         | _ -> None
 
-    let rec (|BindExpressions|_|) (assignExprs: Expr) =
-        match assignExprs with
-        | Sequential (BindExpression head, BindExpressions tail) -> Some <| head :: tail
-        | BindExpression binding -> Some [binding]
-        | _ -> None
-
 
 type BindingProxy(initValue) =
     let mutable value = initValue
