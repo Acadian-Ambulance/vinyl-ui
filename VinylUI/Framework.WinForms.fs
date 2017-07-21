@@ -52,15 +52,9 @@ module DataBind =
         match assignExprs with
         | BindingPatterns.BindExpressions bindInfos ->
             bindInfos |> List.map (fun bindInfo ->
-                let value = bindInfo.SourceProperty.GetValue bindInfo.Source
-                let proxy = BindingProxy value
-                let proxyBindInfo = { bindInfo with Source = proxy; SourceProperty = BindingProxy.Property }
+                let proxyBindInfo, binding = bindInfo.CreateProxyBinding()
                 createBinding proxyBindInfo |> ignore
-                {
-                    ModelProperty = bindInfo.SourceProperty
-                    ViewChanged = proxy.ViewChanged
-                    SetView = (fun v -> proxy.Value <- v)
-                })
+                binding)
         | e -> failwithf "Unrecognized binding expression: %A." e
 
     /// Binds a model property to a changed handler function.

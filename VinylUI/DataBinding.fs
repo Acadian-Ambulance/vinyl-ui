@@ -214,3 +214,15 @@ type Binding = {
     ViewChanged: IObservable<obj>
     SetView: obj -> unit
 }
+
+type BindingInfo<'Control> with
+    member this.CreateProxyBinding () =
+        let value = this.SourceProperty.GetValue this.Source
+        let proxy = BindingProxy value
+        let proxyBindInfo = { this with Source = proxy; SourceProperty = BindingProxy.Property }
+        let binding = {
+            ModelProperty = this.SourceProperty
+            ViewChanged = proxy.ViewChanged
+            SetView = (fun v -> proxy.Value <- v)
+        }
+        proxyBindInfo, binding
