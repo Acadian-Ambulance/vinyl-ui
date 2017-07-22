@@ -55,6 +55,7 @@
     <None Include="paket.references" />
     <Content Include="App.config" />
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="DataBindingTests.fs" />
     <Compile Include="FrameworkTests.fs" />
   </ItemGroup>
   <ItemGroup>

@@ -1,8 +1,8 @@
 ﻿module FrameworkTests
 
 open NUnit.Framework
-open VinylUI
 open FsUnitTyped
+open VinylUI
 
 type Record = {
     Text: string
