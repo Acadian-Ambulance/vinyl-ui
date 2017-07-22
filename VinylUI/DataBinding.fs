@@ -132,6 +132,10 @@ module BindingPatterns =
     let (|PipedExpression|_|) expr =
         match expr with
         | SpecificCall <@@ (|>) @@> (None, _, [left; Lambda (_, right)]) -> Some (left, right)
+        | SpecificCall <@@ (|>) @@> (None, _, [left; Let (letVar, letVal, Lambda (_, right))]) ->
+            // inline the let var
+            let rightSubbed = right.Substitute (fun var -> if var.Name = letVar.Name then Some letVal else None)
+            Some (left, rightSubbed)
         | SpecificCall <@@ (|>) @@> (None, _, [left; right]) -> Some (left, right)
         | _ -> None
 
@@ -177,6 +181,16 @@ module BindingPatterns =
             }
         | _ -> None
 
+    let private (|MaybePipedCall|_|) expr =
+        match expr with
+        | PipedExpression (lastArg, Call (instance, methodInfo, callArgs)) ->
+            // the right side is a lambda that calls the function with the lambda parameter as the last arg
+            // swap the last arg with the left side of the pipe
+            let args = callArgs |> List.rev |> List.tail |> List.append [lastArg] |> List.rev
+            Some (instance, methodInfo, args)
+        | Call (instance, methodInfo, args) -> Some (instance, methodInfo, args)
+        | _ -> None
+
     let rec private (|BindToViewFuncArgs|_|) expr =
         match expr with
         | [PropertyExpression (src, prop)] -> Some ([], src, prop)
@@ -188,7 +202,7 @@ module BindingPatterns =
 
     let (|BindToViewFunc|_|) callExpr =
         match callExpr with
-        | Call (instanceExpr, methodInfo, BindToViewFuncArgs (otherArgs, src, prop)) ->
+        | MaybePipedCall (instanceExpr, methodInfo, BindToViewFuncArgs (otherArgs, src, prop)) ->
             let instance = instanceExpr |> Option.map QuotationEvaluator.EvaluateUntyped |> Option.toObj
             let updateView = (fun a ->
                 let args = List.append otherArgs [a] |> List.toArray

@@ -123,16 +123,20 @@ let updateViewWithObj (v: obj) = ()
 type Model with
     member this.updateView _ = ()
 
-[<Test>]
-let ``BindToViewFunc parses call to static function``() =
-    let src, prop, func = <@ updateView model.Name @> |> bindToViewFunc
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``BindToViewFunc parses call to static function`` piped =
+    let expr = if piped then <@ model.Name |> updateView @> else <@ updateView model.Name @>
+    let src, prop, func = expr |> bindToViewFunc
     src |> should equal model
     prop |> shouldEqual Model.NameProperty
     func "" // should not throw
 
-[<Test>]
-let ``BindToViewFunc parses call to static function with multiple arguments``() =
-    let src, prop, func = <@ updateViewWith 5 model.Name @> |> bindToViewFunc
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``BindToViewFunc parses call to static function with multiple arguments`` piped =
+    let expr = if piped then <@ model.Name |> updateViewWith 5 @> else <@ updateViewWith 5 model.Name @>
+    let src, prop, func = expr |> bindToViewFunc
     src |> should equal model
     prop |> shouldEqual Model.NameProperty
     func "" // should not throw
