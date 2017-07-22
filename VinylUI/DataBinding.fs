@@ -78,11 +78,6 @@ module BindOption =
     let UpdateSourceNever = undefined
 
 module BindingPatterns =
-    let (|ObjExpression|_|) (expr: Expr option) =
-        match expr with
-        | Some e -> Some (QuotationEvaluator.EvaluateUntyped e)
-        | _ -> None
-
     let (|ControlExpression|_|) (expr: Expr option) =
         match expr with
         | Some controlExpr when typedefof<'Control>.IsAssignableFrom(controlExpr.Type) ->
@@ -91,7 +86,8 @@ module BindingPatterns =
 
     let (|PropertyExpression|_|) (expr: Expr) =
         match expr with
-        | PropertyGet (ObjExpression source, propInfo, []) -> Some (source, propInfo)
+        | PropertyGet (Some source, propInfo, []) ->
+            Some (QuotationEvaluator.EvaluateUntyped source, propInfo)
         | _ -> None
 
     let (|PropertyTupleSelector|_|) expr =
