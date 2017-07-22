@@ -109,3 +109,44 @@ let ``BindExpression parses set control property to model property with update o
 let ``BindExpression parses set control property to model property with update never``() =
     <@ control.Text <- model.Name |> BindOption.UpdateSourceNever @> |> bindExpression
     |> bindInfoMatches (bindInfo Control.TextProperty Model.NameProperty false (Some Never))
+
+
+let bindToViewFunc expr =
+    match expr with
+    | BindToViewFunc result -> result
+    | _ -> failwithf "expr did not parse: %A" expr
+
+let updateView _ = ()
+let updateViewWith arg _ = ()
+let updateViewWithObj (v: obj) = ()
+
+type Model with
+    member this.updateView _ = ()
+
+[<Test>]
+let ``BindToViewFunc parses call to static function``() =
+    let src, prop, func = <@ updateView model.Name @> |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func "" // should not throw
+
+[<Test>]
+let ``BindToViewFunc parses call to static function with multiple arguments``() =
+    let src, prop, func = <@ updateViewWith 5 model.Name @> |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func "" // should not throw
+
+[<Test>]
+let ``BindToViewFunc parses call to static function with coerce``() =
+    let src, prop, func = <@ updateViewWithObj model.Name @> |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func "" // should not throw
+
+[<Test>]
+let ``BindToViewFunc parses call to member function``() =
+    let src, prop, func = <@ model.updateView model.Name @> |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func "" // should not throw

@@ -48,7 +48,7 @@ module DataBind =
         controlBinding
 
     /// Creates bindings from a quotation of statements, where each statement is an assignment to
-    /// a view property from a model property.
+    /// a view property from a model property or a call to a function passing a model property.
     let rec fromExpr (assignExprs: Expr) =
         match assignExprs with
         | Sequential (head, tail) -> List.append (fromExpr head) (fromExpr tail)
@@ -56,19 +56,12 @@ module DataBind =
             let proxyBindInfo, binding = bindInfo.CreateProxyBinding()
             createBinding proxyBindInfo |> ignore
             [binding]
+        | BindingPatterns.BindToViewFunc (source, property, updateView) ->
+            updateView (property.GetValue source)
+            let binding = {
+                ModelProperty = property
+                ViewChanged = Event<_>().Publish
+                SetView = updateView
+            }
+            [binding]
         | e -> failwithf "Unrecognized binding expression: %A." e
-
-    /// Binds a model property to a changed handler function.
-    /// The handler is invoked immediately and when the property is changed.
-    let propertyToFunc (sourceExpr: Expr<'a>) (onChanged: 'a -> unit) =
-        let source, property =
-            match sourceExpr with
-            | BindingPatterns.PropertyExpression (source, property) -> (source, property)
-            | _ -> failwith "Expression must a property expression"
-        let cast (sourceVal: obj) = sourceVal :?> 'a
-        onChanged (property.GetValue source |> cast)
-        {
-            ModelProperty = property
-            ViewChanged = Event<_>().Publish
-            SetView = cast >> onChanged
-        }

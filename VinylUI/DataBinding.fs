@@ -84,7 +84,7 @@ module BindingPatterns =
             Some (QuotationEvaluator.EvaluateUntyped controlExpr :?> 'Control)
         | _ -> None
 
-    let (|PropertyExpression|_|) (expr: Expr) =
+    let (|PropertyExpression|_|) expr =
         match expr with
         | PropertyGet (Some source, propInfo, []) ->
             Some (QuotationEvaluator.EvaluateUntyped source, propInfo)
@@ -101,7 +101,7 @@ module BindingPatterns =
             Some (t.GetGenericTypeDefinition(), t.GetGenericArguments() |> List.ofArray)
         else None
 
-    let (|GenericConstructor|_|) (expr: Expr) =
+    let (|GenericConstructor|_|) expr =
         match expr with
         | NewObject (ctor, _) ->
             match ctor.DeclaringType with
@@ -109,7 +109,7 @@ module BindingPatterns =
             | _ -> None
         | _ -> None
 
-    let private (|ConvertModifier|_|) (expr: Expr) =
+    let private (|ConvertModifier|_|) expr =
         match expr with
         | SpecificCall <@@ Option.toNullable @@> (_, [genArg], _) ->
             Some (BindingConverters.optionToNullable genArg)
@@ -117,25 +117,25 @@ module BindingPatterns =
             Some (BindingConverters.wrapInNullable wrappedType)
         | _ -> None
 
-    let private (|UpdateModeModifier|_|) (expr: Expr) =
+    let private (|UpdateModeModifier|_|) expr =
         match expr with
         | SpecificCall <@@ BindOption.UpdateSourceOnChange @@> _ -> Some OnChange
         | SpecificCall <@@ BindOption.UpdateSourceNever @@> _ -> Some Never
         | _ -> None
 
-    let (|BindingModifier|_|) (expr: Expr) =
+    let (|BindingModifier|_|) expr =
         match expr with
         | ConvertModifier converter -> Some (Some converter, None)
         | UpdateModeModifier updateMode -> Some (None, Some updateMode)
         | _ -> None
 
-    let (|PipedExpression|_|) (expr: Expr) =
+    let (|PipedExpression|_|) expr =
         match expr with
         | SpecificCall <@@ (|>) @@> (None, _, [left; Lambda (_, right)]) -> Some (left, right)
         | SpecificCall <@@ (|>) @@> (None, _, [left; right]) -> Some (left, right)
         | _ -> None
 
-    let rec (|BindingModifiers|) (expr: Expr) =
+    let rec (|BindingModifiers|) expr =
         match expr with
         | PipedExpression (BindingModifiers (expr, leftConverter, leftUpdateMode),
                            BindingModifier (rightConverter, rightUpdateMode)) ->
@@ -147,7 +147,7 @@ module BindingPatterns =
             (expr, converter, updateMode)
         | _ -> (expr, None, None)
 
-    let rec (|BindPropertyExpression|_|) (expr: Expr) =
+    let rec (|BindPropertyExpression|_|) expr =
         match expr with
         | BindingModifiers (PropertyExpression (src, srcMember), converter, updateMode) ->
             Some (src, srcMember, converter, updateMode)
@@ -161,7 +161,7 @@ module BindingPatterns =
             Some (src, srcMember, newConverter, updateMode)
         | _ -> None
 
-    let (|BindExpression|_|) (assignExpr: Expr) =
+    let (|BindExpression|_|) assignExpr =
         match assignExpr with
         | PropertySet (ControlExpression control,
                        controlProp,
@@ -175,6 +175,25 @@ module BindingPatterns =
                 Converter = converter
                 UpdateMode = updateMode
             }
+        | _ -> None
+
+    let rec private (|BindToViewFuncArgs|_|) expr =
+        match expr with
+        | [PropertyExpression (src, prop)] -> Some ([], src, prop)
+        | [Coerce (PropertyExpression (src, prop), _)] -> Some ([], src, prop)
+        | argExpr :: BindToViewFuncArgs (args, src, prop) ->
+            let arg = QuotationEvaluator.EvaluateUntyped argExpr
+            Some (arg :: args, src, prop)
+        | _ -> None
+
+    let (|BindToViewFunc|_|) callExpr =
+        match callExpr with
+        | Call (instanceExpr, methodInfo, BindToViewFuncArgs (otherArgs, src, prop)) ->
+            let instance = instanceExpr |> Option.map QuotationEvaluator.EvaluateUntyped |> Option.toObj
+            let updateView = (fun a ->
+                let args = List.append otherArgs [a] |> List.toArray
+                methodInfo.Invoke(instance, args) |> ignore)
+            Some (src, prop, updateView)
         | _ -> None
 
 
