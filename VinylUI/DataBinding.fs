@@ -28,10 +28,10 @@ type BindingInfo<'Control> = {
 }
 
 module BindingConverters =
-    let compose inner outer = {
-        ToControl = inner.ToControl >> outer.ToControl
-        ToSource = outer.ToSource >> inner.ToSource
-    }
+    let compose inner outer =
+        { ToControl = inner.ToControl >> outer.ToControl
+          ToSource = outer.ToSource >> inner.ToSource
+        }
 
     let composeOptions inner outer =
         match inner, outer with
@@ -46,9 +46,8 @@ module BindingConverters =
                 let funcOfT = mi.GetGenericMethodDefinition().MakeGenericMethod([|genericArg|])
                 (fun x -> funcOfT.Invoke(null, [|x|]))
             | _ -> failwith "expression is not a static function"
-        {
-            ToControl = makeGenericFunc toControl modelPropType
-            ToSource = makeGenericFunc toSource modelPropType
+        { ToControl = makeGenericFunc toControl modelPropType
+          ToSource = makeGenericFunc toSource modelPropType
         }
 
     let optionToNullable t = makeGenericConverter <@ Option.toNullable @> <@ Option.ofNullable @> t

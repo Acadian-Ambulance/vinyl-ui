@@ -36,7 +36,8 @@ let model = { Name = "tim"; Number = 2; Age = Some 25 }
 let bindInfo controlProp sourceProp hasConverter updateMode =
     let converter = if hasConverter then Some { ToControl = id; ToSource = id } else None
     { Control = control :> obj; ControlProperty = controlProp; Source = model; SourceProperty = sourceProp
-      Converter = converter; UpdateMode = updateMode }
+      Converter = converter; UpdateMode = updateMode
+    }
 
 let bindExpression expr =
     match expr with
@@ -53,17 +54,20 @@ let bindInfoMatches expected actual =
 
 [<Test>]
 let ``BindExpression parses set control property to model property``() =
-    <@ control.Text <- model.Name @> |> bindExpression
+    <@ control.Text <- model.Name @>
+    |> bindExpression
     |> bindInfoMatches (bindInfo Control.TextProperty Model.NameProperty false None)
 
 [<Test>]
 let ``BindExpression parses set form's control property to model property``() =
-    <@ form.MyControl.Text <- model.Name @> |> bindExpression
+    <@ form.MyControl.Text <- model.Name @>
+    |> bindExpression
     |> bindInfoMatches (bindInfo Control.TextProperty Model.NameProperty false None)
 
 [<Test>]
 let ``BindExpression parses set control obj property to model property``() =
-    <@ control.ObjValue <- model.Number :> obj @> |> bindExpression
+    <@ control.ObjValue <- model.Number :> obj @>
+    |> bindExpression
     |> bindInfoMatches (bindInfo Control.ObjValueProperty Model.NumberProperty false None)
 
 [<Test>]
@@ -78,8 +82,9 @@ let ``BindExpression parses set control obj property to model option property, u
 
 [<Test>]
 let ``BindExpression parses set control obj property to model option property with explicit converter``() =
-    let bi = <@ control.ObjValue <- model.Age |> Option.toNullable @> |> bindExpression
-    bi |> bindInfoMatches (bindInfo Control.ObjValueProperty Model.AgeProperty true None)
+    <@ control.ObjValue <- model.Age |> Option.toNullable @>
+    |> bindExpression
+    |> bindInfoMatches (bindInfo Control.ObjValueProperty Model.AgeProperty true None)
 
 [<Test>]
 let ``BindExpression parses set control nullable property to model property, uses converter``() =
@@ -102,12 +107,14 @@ let ``BindExpression parses set control nullable property to model option proper
 
 [<Test>]
 let ``BindExpression parses set control property to model property with update on changed``() =
-    <@ control.Text <- model.Name |> BindOption.UpdateSourceOnChange @> |> bindExpression
+    <@ control.Text <- model.Name |> BindOption.UpdateSourceOnChange @>
+    |> bindExpression
     |> bindInfoMatches (bindInfo Control.TextProperty Model.NameProperty false (Some OnChange))
 
 [<Test>]
 let ``BindExpression parses set control property to model property with update never``() =
-    <@ control.Text <- model.Name |> BindOption.UpdateSourceNever @> |> bindExpression
+    <@ control.Text <- model.Name |> BindOption.UpdateSourceNever @>
+    |> bindExpression
     |> bindInfoMatches (bindInfo Control.TextProperty Model.NameProperty false (Some Never))
 
 

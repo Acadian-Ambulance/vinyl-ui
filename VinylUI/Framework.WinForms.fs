@@ -37,11 +37,13 @@ module DataBind =
                                         true,
                                         bindingUpdateMode)
         b.Converter |> Option.iter (addConverter controlBinding)
+
         match b.Control, b.ControlProperty.Name with
-            | :? ComboBox as cbo, "SelectedItem" ->
-                // workaround for bindings to SelectedItem not triggering until focus is lost
-                cbo.SelectedIndexChanged.Add (fun _ -> controlBinding.WriteValue())
-            | _ -> ()
+        | :? ComboBox as cbo, "SelectedItem" ->
+            // workaround for bindings to SelectedItem not triggering until focus is lost
+            cbo.SelectedIndexChanged.Add (fun _ -> controlBinding.WriteValue())
+        | _ -> ()
+
         b.Control.DataBindings.Add controlBinding
         controlBinding
 
