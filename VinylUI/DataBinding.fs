@@ -249,3 +249,24 @@ type BindingInfo<'Control> with
             SetView = (fun v -> proxy.Value <- v)
         }
         proxyBindInfo, binding
+
+module CommonBinding =
+    /// Creates bindings from a quotation of statements, where each statement is an assignment to
+    /// a view property from a model property or a call to a function passing a model property.
+    let rec fromExpr createBinding assignExprs =
+        let recurse = fromExpr createBinding
+        match assignExprs with
+        | Sequential (head, tail) -> List.append (recurse head) (recurse tail)
+        | BindingPatterns.BindExpression bindInfo ->
+            let proxyBindInfo, binding = bindInfo.CreateProxyBinding()
+            createBinding proxyBindInfo |> ignore
+            [binding]
+        | BindingPatterns.BindToViewFunc (source, property, updateView) ->
+            updateView (property.GetValue source)
+            let binding = {
+                ModelProperty = property
+                ViewChanged = Event<_>().Publish
+                SetView = updateView
+            }
+            [binding]
+        | e -> failwithf "Unrecognized binding expression: %A." e
