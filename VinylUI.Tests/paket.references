@@ -1,4 +1,3 @@
 group fstest
 NUnit
-Foq
 FsUnit
