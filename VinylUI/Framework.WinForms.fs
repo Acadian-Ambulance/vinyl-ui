@@ -50,3 +50,35 @@ module DataBind =
     /// Creates bindings from a quotation of statements, where each statement is an assignment to
     /// a view property from a model property or a call to a function passing a model property.
     let fromExpr assignExprs = CommonBinding.fromExpr createBinding assignExprs
+
+
+/// Helpers for setting the DataSource of ListControls
+module ListSource =
+    open System.Collections.Generic
+    open Microsoft.FSharp.Quotations
+    open VinylUI.BindingPatterns
+
+    let fromSeq (control: ListControl) (displayValueProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
+        let (displayMember, valueMember) =
+            match displayValueProperties with
+            | PropertyTupleSelector (displayProp, valueProp) -> (displayProp.Name, valueProp.Name)
+            | _ -> failwith (sprintf "Expected an expression that selects a tuple of the display property and value property, but was given %A" displayValueProperties)
+        control.DisplayMember <- displayMember
+        control.ValueMember <- valueMember
+        control.DataSource <- List source
+
+    /// Set the DataSource to the contents of a dictionary.
+    /// The keys will be the control items' values and the dictionary values will be the items' text.
+    let fromDict (control: ListControl) (source: IDictionary<'value, 'display>) =
+        control.DataSource <- null
+        (* we have to set the members both before and after setting the DataSource. We have to set it before in case
+         * event handlers try to read a value as soon as the DataSource is set, and we have to set it after because 
+         * CheckedListBox and DataGridViewComboBoxEditingControl forget their DisplayMember when DataSource is set *)
+        control.DisplayMember <- "Value"
+        control.ValueMember <- "Key"
+        control.DataSource <- List source
+        control.DisplayMember <- "Value"
+        control.ValueMember <- "Key"
+
+    /// Set the DataSource to a sequence of value * display pairs.
+    let fromPairs (control: ListControl) (source: ('value * 'display) seq) = fromDict control (dict source)

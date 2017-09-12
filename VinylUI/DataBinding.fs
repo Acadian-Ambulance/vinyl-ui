@@ -128,14 +128,14 @@ module BindingPatterns =
         | UpdateModeModifier updateMode -> Some (None, Some updateMode)
         | _ -> None
 
-    let (|PipedExpression|_|) expr =
-        match expr with
-        | SpecificCall <@@ (|>) @@> (None, _, [left; Lambda (_, right)]) -> Some (left, right)
-        | SpecificCall <@@ (|>) @@> (None, _, [left; Let (letVar, letVal, Lambda (_, right))]) ->
-            // inline the let var
-            let rightSubbed = right.Substitute (fun var -> if var.Name = letVar.Name then Some letVal else None)
-            Some (left, rightSubbed)
-        | SpecificCall <@@ (|>) @@> (None, _, [left; right]) -> Some (left, right)
+    let rec (|InlineLambdaAndLet|) = function
+        | Lambda (_, body) -> body
+        | Let (letVar, letVal, InlineLambdaAndLet body) ->
+            body.Substitute (fun var -> if var.Name = letVar.Name then Some letVal else None)
+        | e -> e
+
+    let (|PipedExpression|_|) = function
+        | SpecificCall <@@ (|>) @@> (None, _, [left; InlineLambdaAndLet right]) -> Some (left, right)
         | _ -> None
 
     let rec (|BindingModifiers|) expr =
@@ -201,7 +201,11 @@ module BindingPatterns =
         | [PropertyExpression (src, prop)] -> Some ([], src, prop)
         | [Coerce (PropertyExpression (src, prop), _)] -> Some ([], src, prop)
         | argExpr :: BindToViewFuncArgs (args, src, prop) ->
-            let arg = QuotationEvaluator.EvaluateUntyped argExpr
+            let arg =
+                match argExpr with
+                | QuoteTyped expr ->
+                    box <| typedefof<Expr>.GetMethod("Cast").MakeGenericMethod(expr.Type).Invoke(null, [| expr |])
+                | _ -> QuotationEvaluator.EvaluateUntyped argExpr
             Some (arg :: args, src, prop)
         | _ -> None
 

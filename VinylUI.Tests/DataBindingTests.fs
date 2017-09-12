@@ -19,19 +19,29 @@ type Form = {
     MyControl: Control
 }
 
+type Book = {
+    ISBN: string
+    Name: string
+}
+
 type Model = {
     Name: string
     Number: int
     Age: int option
+    Books: Book seq
 }
 with
     static member NameProperty = typedefof<Model>.GetProperty("Name")
     static member NumberProperty = typedefof<Model>.GetProperty("Number")
     static member AgeProperty = typedefof<Model>.GetProperty("Age")
+    static member BooksProperty = typedefof<Model>.GetProperty("Books")
 
 let control = Control()
 let form = { MyControl = control }
-let model = { Name = "tim"; Number = 2; Age = Some 25 }
+let model = { Name = "tim"; Number = 2; Age = Some 25
+              Books = [ { ISBN = "a1"; Name = "Cooking with Fire" }
+                        { ISBN = "b9"; Name = "Something Like That" } ]
+            }
 
 let bindInfo controlProp sourceProp hasConverter updateMode =
     let converter = if hasConverter then Some { ToControl = id; ToSource = id } else None
@@ -182,3 +192,23 @@ let ``BindToViewFunc parses call to local function value`` piped =
     prop |> shouldEqual Model.NameProperty
     func "" // should not throw
 
+
+open VinylUI.WinForms
+open System.Windows.Forms
+
+type TestForm = {
+    Control: ListControl
+}
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``BindToViewFunc parses call to ListSource.fromSeq`` piped =
+    use control = new ListBox()
+    let form = { Control = control }
+    let expr =
+        if piped then <@ model.Books |> ListSource.fromSeq form.Control <@ fun b -> b.ISBN, b.Name @> @>
+        else <@ ListSource.fromSeq form.Control <@ fun b -> b.ISBN, b.Name @> model.Books @>
+    let src, prop, func = expr |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.BooksProperty
+    func model.Books // should not throw
