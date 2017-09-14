@@ -161,3 +161,24 @@ let ``BindToViewFunc parses call to member function``() =
     src |> should equal model
     prop |> shouldEqual Model.NameProperty
     func "" // should not throw
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``BindToViewFunc parses call to local function`` piped =
+    let update (x: string) = updateViewWithObj x
+    let expr = if piped then <@ model.Name |> update @> else <@ update model.Name @>
+    let src, prop, func = expr |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func "" // should not throw
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``BindToViewFunc parses call to local function value`` piped =
+    let update : string -> unit = updateViewWithObj
+    let expr = if piped then <@ model.Name |> update @> else <@ update model.Name @>
+    let src, prop, func = expr |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func "" // should not throw
+

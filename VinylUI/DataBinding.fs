@@ -190,6 +190,12 @@ module BindingPatterns =
         | Call (instance, methodInfo, args) -> Some (instance, methodInfo, args)
         | _ -> None
 
+    let private (|MaybePipedApplication|_|) = function
+        | PipedExpression (arg, ValueWithName (func, _, _))
+        | Application (ValueWithName (func, _, _), arg) ->
+            Some (func :?> 'a -> unit, arg)
+        | _ -> None
+
     let rec private (|BindToViewFuncArgs|_|) expr =
         match expr with
         | [PropertyExpression (src, prop)] -> Some ([], src, prop)
@@ -207,6 +213,7 @@ module BindingPatterns =
                 let args = List.append otherArgs [a] |> List.toArray
                 methodInfo.Invoke(instance, args) |> ignore)
             Some (src, prop, updateView)
+        | MaybePipedApplication (func, PropertyExpression (src, prop)) -> Some (src, prop, func)
         | _ -> None
 
 
