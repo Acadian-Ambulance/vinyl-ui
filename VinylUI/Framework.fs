@@ -46,7 +46,7 @@ module Framework =
         let error = fun(exn, _) -> ExceptionDispatchInfo.Capture(exn).Throw()
 
         let bindings = binder view initialModel
-        let props = typedefof<'Model>.GetProperties()
+        let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
 
         let mutable currentModel = initialModel
 

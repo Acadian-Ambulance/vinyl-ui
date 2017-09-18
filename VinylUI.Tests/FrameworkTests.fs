@@ -3,6 +3,7 @@
 open NUnit.Framework
 open FsUnitTyped
 open VinylUI
+open System.Reflection
 
 type Record = {
     Text: string
@@ -15,7 +16,7 @@ with
 
     member this.InflatedNumber = this.Number + 10
 
-let props = typedefof<Record>.GetProperties()
+let props = typedefof<Record>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
 
 [<Test>]
 let ``Model.changes detects single change``() =
