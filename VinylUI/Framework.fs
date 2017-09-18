@@ -21,6 +21,7 @@ module Model =
                 None
         )
 
+    // TODO: accept multiple changes
     let permute (model: 'Model) propertyName value =
         let t = typedefof<'Model>
         let ctor = t.GetConstructors().[0]
@@ -53,7 +54,10 @@ module Framework =
         // subscribe to control changes to update the model
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
-                currentModel <- Model.permute currentModel binding.ModelProperty.Name value))
+                let prop = binding.ModelProperty
+                currentModel <- Model.permute currentModel prop.Name value
+                let otherBindings = bindings |> Seq.filter (fun b -> not <| obj.ReferenceEquals(b, binding))
+                Model.updateView otherBindings [prop, value]))
 
         let eventList : IObservable<'Event> list = events view
         let eventStream = eventList.Merge()
