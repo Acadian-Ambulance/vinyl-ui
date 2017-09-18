@@ -4,6 +4,7 @@ open System
 open System.Reactive
 open System.Reactive.Linq
 open System.Runtime.ExceptionServices
+open System.Reflection
 
 type EventHandler<'Model> =
     | Sync of ('Model -> 'Model)
@@ -21,20 +22,18 @@ module Model =
                 None
         )
 
-    // TODO: accept multiple changes
-    let permute (model: 'Model) propertyName value =
+    let permute (model: 'Model) changes =
         let t = typedefof<'Model>
         let ctor = t.GetConstructors().[0]
+        let propNameIs name (prop: PropertyInfo) = String.Equals(name, prop.Name, StringComparison.InvariantCultureIgnoreCase)
         let props = t.GetProperties()
-        let equalIgnoreCase s1 s2 = String.Equals(s1, s2, StringComparison.InvariantCultureIgnoreCase)
+        let getCurrentValue propName = props |> Seq.find (propNameIs propName) |> (fun p -> p.GetValue model)
         let args =
             ctor.GetParameters()
             |> Array.map (fun param ->
-                if equalIgnoreCase param.Name propertyName then
-                    value :> obj
-                else
-                    let prop = props |> Seq.find (fun p -> equalIgnoreCase p.Name param.Name)
-                    prop.GetValue model)
+                match changes |> Seq.tryFind (fst >> propNameIs param.Name) with
+                | Some (_, newValue) -> box newValue
+                | None -> getCurrentValue param.Name)
         ctor.Invoke(args) :?> 'Model
 
     let updateView bindings changes =
@@ -55,7 +54,7 @@ module Framework =
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
                 let prop = binding.ModelProperty
-                currentModel <- Model.permute currentModel prop.Name value
+                currentModel <- Model.permute currentModel [prop, value]
                 let otherBindings = bindings |> Seq.filter (fun b -> not <| obj.ReferenceEquals(b, binding))
                 Model.updateView otherBindings [prop, value]))
 
@@ -79,8 +78,7 @@ module Framework =
                     },
                     continuation = (fun changes ->
                         changes |> Model.updateView bindings
-                        changes |> Seq.iter (fun (prop, value) ->
-                            currentModel <- Model.permute currentModel prop.Name value)
+                        currentModel <- Model.permute currentModel changes
                     ),
                     exceptionContinuation = (fun exn -> error(exn, event)),
                     cancellationContinuation = ignore))

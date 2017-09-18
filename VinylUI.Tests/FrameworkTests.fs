@@ -30,10 +30,10 @@ let ``Model.changes detects multiple changes``() =
 let ``Model.permute creates new model with new property value``() =
     let original = { Text = "before value"; Number = 1 }
 
-    let newString = Model.permute original "Text" "after value"
+    let newString = Model.permute original [Record.TextProperty, "after value"]
     newString |> shouldEqual { original with Text = "after value" }
 
-    let newInt = Model.permute original "Number" 7
+    let newInt = Model.permute original [Record.NumberProperty, 7]
     newInt |> shouldEqual { original with Number = 7 }
 
 [<Test>]
