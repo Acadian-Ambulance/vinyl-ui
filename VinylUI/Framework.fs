@@ -11,6 +11,17 @@ type EventHandler<'Model> =
     | Async of ('Model -> Async<'Model>)
 
 module Model =
+    let equalIgnoreCase a b =
+        let r = String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
+        r
+
+    let computedProperties (props: PropertyInfo seq) =
+        let ctorParams = lazy ((props |> Seq.head).DeclaringType.GetConstructors().[0].GetParameters()
+                               |> Array.map (fun p -> p.Name))
+        let isCtorParam (prop: PropertyInfo) =
+            ctorParams.Value |> Seq.exists (equalIgnoreCase prop.Name)
+        props |> Seq.filter (not << isCtorParam)
+
     let changes (props: PropertyInfo seq) (original: 'a) (updated: 'a) =
         props |> Seq.choose (fun p ->
             let originalVal = p.GetValue original
@@ -24,7 +35,7 @@ module Model =
     let permute (model: 'Model) changes =
         let t = typedefof<'Model>
         let ctor = t.GetConstructors().[0]
-        let propNameIs name (prop: PropertyInfo) = String.Equals(name, prop.Name, StringComparison.InvariantCultureIgnoreCase)
+        let propNameIs name (prop: PropertyInfo) = equalIgnoreCase name prop.Name
         let props = t.GetProperties()
         let getCurrentValue propName = props |> Seq.find (propNameIs propName) |> (fun p -> p.GetValue model)
         let args =
@@ -47,6 +58,7 @@ module Framework =
 
         let bindings = binder view initialModel
         let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
+        let computedProps = Model.computedProperties props
 
         let mutable currentModel = initialModel
 
@@ -54,10 +66,11 @@ module Framework =
         let exceptRef a = Seq.filter (fun x -> not <| obj.ReferenceEquals(x, a))
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
-                let prop = binding.ModelProperty
-                currentModel <- Model.permute currentModel [prop, value]
-                // TODO: find changes to computed properties and push to view
-                Model.updateView (bindings |> exceptRef binding) [prop, value]))
+                let change = binding.ModelProperty, value
+                let prevModel = currentModel
+                currentModel <- Model.permute currentModel [change]
+                let computedChanges = Model.changes computedProps prevModel currentModel |> Seq.toList
+                Model.updateView (bindings |> exceptRef binding) (change :: computedChanges)))
 
         let eventList : IObservable<'Event> list = events view
         let eventStream = eventList.Merge()

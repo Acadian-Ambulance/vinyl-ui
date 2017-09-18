@@ -19,6 +19,10 @@ with
 let props = typedefof<Record>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
 
 [<Test>]
+let ``Model.computedProperties returns only computed properties``() =
+    Model.computedProperties props |> Seq.toList |> shouldEqual [ Record.InflatedNumberProperty ]
+
+[<Test>]
 let ``Model.changes detects single change``() =
     let original = { Text = "before value"; Number = 7 }
     let updated = { Text = "after value"; Number = 7 }
