@@ -11,9 +11,8 @@ type EventHandler<'Model> =
     | Async of ('Model -> Async<'Model>)
 
 module Model =
-    let changes (original: 'a) (updated: 'a) =
-        typedefof<'a>.GetProperties()
-        |> Seq.choose (fun p ->
+    let changes (props: PropertyInfo seq) (original: 'a) (updated: 'a) =
+        props |> Seq.choose (fun p ->
             let originalVal = p.GetValue original
             let updatedVal = p.GetValue updated
             if originalVal <> updatedVal then
@@ -47,6 +46,7 @@ module Framework =
         let error = fun(exn, _) -> ExceptionDispatchInfo.Capture(exn).Throw()
 
         let bindings = binder view initialModel
+        let props = typedefof<'Model>.GetProperties()
 
         let mutable currentModel = initialModel
 
@@ -56,6 +56,7 @@ module Framework =
             binding.ViewChanged.Add (fun value ->
                 let prop = binding.ModelProperty
                 currentModel <- Model.permute currentModel [prop, value]
+                // TODO: find changes to computed properties and push to view
                 Model.updateView (bindings |> exceptRef binding) [prop, value]))
 
         let eventList : IObservable<'Event> list = events view
@@ -65,7 +66,7 @@ module Framework =
             match dispatcher event with
             | Sync eventHandler ->
                 try
-                    let changes = eventHandler currentModel |> Model.changes currentModel
+                    let changes = eventHandler currentModel |> Model.changes props currentModel
                     changes |> Model.updateView bindings
                     currentModel <- Model.permute currentModel changes
                 with exn -> error(exn, event)
@@ -74,7 +75,7 @@ module Framework =
                     computation = async {
                         let originalModel = currentModel
                         let! newModel = eventHandler originalModel
-                        return newModel |> Model.changes originalModel
+                        return newModel |> Model.changes props originalModel
                     },
                     continuation = (fun changes ->
                         changes |> Model.updateView bindings
