@@ -65,9 +65,9 @@ module Framework =
             match dispatcher event with
             | Sync eventHandler ->
                 try
-                    let newModel = eventHandler currentModel
-                    newModel |> Model.changes currentModel |> Model.updateView bindings
-                    currentModel <- newModel
+                    let changes = eventHandler currentModel |> Model.changes currentModel
+                    changes |> Model.updateView bindings
+                    currentModel <- Model.permute currentModel changes
                 with exn -> error(exn, event)
             | Async eventHandler ->
                 Async.StartWithContinuations(
