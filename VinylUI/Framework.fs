@@ -51,12 +51,12 @@ module Framework =
         let mutable currentModel = initialModel
 
         // subscribe to control changes to update the model
+        let exceptRef a = Seq.filter (fun x -> not <| obj.ReferenceEquals(x, a))
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
                 let prop = binding.ModelProperty
                 currentModel <- Model.permute currentModel [prop, value]
-                let otherBindings = bindings |> Seq.filter (fun b -> not <| obj.ReferenceEquals(b, binding))
-                Model.updateView otherBindings [prop, value]))
+                Model.updateView (bindings |> exceptRef binding) [prop, value]))
 
         let eventList : IObservable<'Event> list = events view
         let eventStream = eventList.Merge()
