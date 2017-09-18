@@ -68,6 +68,7 @@ module ListSource =
         control.DataSource <- List source
         control.DisplayMember <- displayMember
         control.ValueMember <- valueMember
+        control.SelectedIndex <- -1
 
     let fromSeq control (displayValueProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
         let (displayMember, valueMember) =
