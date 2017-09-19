@@ -192,6 +192,19 @@ let ``BindToViewFunc parses call to local function value`` piped =
     prop |> shouldEqual Model.NameProperty
     func "" // should not throw
 
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``BindToViewFunc parses call to lambda`` piped =
+    let control = Control()
+    let expr =
+        if piped then <@ model.Name |> (fun n -> control.Text <- n) @>
+        else <@ (fun n -> control.Text <- n) model.Name @>
+    let src, prop, func = expr |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func "splat" // should not throw
+    control.Text |> shouldEqual "splat"
+
 
 open VinylUI.WinForms
 open System.Windows.Forms

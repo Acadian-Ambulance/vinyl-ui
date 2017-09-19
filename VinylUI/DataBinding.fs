@@ -194,6 +194,10 @@ module BindingPatterns =
         | PipedExpression (arg, ValueWithName (func, _, _))
         | Application (ValueWithName (func, _, _), arg) ->
             Some (func :?> 'a -> unit, arg)
+        | SpecificCall <@@ (|>) @@> (None, _, [arg; Lambda a])
+        | Application (Lambda a, arg) ->
+            let func = QuotationEvaluator.EvaluateUntyped (Expr.Lambda a)
+            Some (func :?> 'a -> unit, arg)
         | _ -> None
 
     let rec private (|BindToViewFuncArgs|_|) expr =
