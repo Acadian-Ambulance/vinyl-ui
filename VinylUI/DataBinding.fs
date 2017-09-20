@@ -83,14 +83,12 @@ module BindingPatterns =
             Some (QuotationEvaluator.EvaluateUntyped controlExpr :?> 'Control)
         | _ -> None
 
-    let (|PropertyExpression|_|) expr =
-        match expr with
+    let (|PropertyExpression|_|) = function
         | PropertyGet (Some source, propInfo, []) ->
             Some (QuotationEvaluator.EvaluateUntyped source, propInfo)
         | _ -> None
 
-    let (|PropertyTupleSelector|_|) expr =
-        match expr with
+    let (|PropertyTupleSelector|_|) = function
         | Lambda (_, NewTuple [PropertyGet (_, displayProp, []); PropertyGet (_, valueProp, [])]) ->
             Some (displayProp, valueProp)
         | _ -> None
@@ -100,30 +98,26 @@ module BindingPatterns =
             Some (t.GetGenericTypeDefinition(), t.GetGenericArguments() |> List.ofArray)
         else None
 
-    let (|GenericConstructor|_|) expr =
-        match expr with
+    let (|GenericConstructor|_|) = function
         | NewObject (ctor, _) ->
             match ctor.DeclaringType with
             | GenericType (genType, [genArg]) -> Some (genType, genArg)
             | _ -> None
         | _ -> None
 
-    let private (|ConvertModifier|_|) expr =
-        match expr with
+    let private (|ConvertModifier|_|) = function
         | SpecificCall <@@ Option.toNullable @@> (_, [genArg], _) ->
             Some (BindingConverters.optionToNullable genArg)
         | GenericConstructor (genType, wrappedType) when genType = typedefof<Nullable<_>> ->
             Some (BindingConverters.wrapInNullable wrappedType)
         | _ -> None
 
-    let private (|UpdateModeModifier|_|) expr =
-        match expr with
+    let private (|UpdateModeModifier|_|) = function
         | SpecificCall <@@ BindOption.UpdateSourceOnChange @@> _ -> Some OnChange
         | SpecificCall <@@ BindOption.UpdateSourceNever @@> _ -> Some Never
         | _ -> None
 
-    let (|BindingModifier|_|) expr =
-        match expr with
+    let (|BindingModifier|_|) = function
         | ConvertModifier converter -> Some (Some converter, None)
         | UpdateModeModifier updateMode -> Some (None, Some updateMode)
         | _ -> None
@@ -138,8 +132,7 @@ module BindingPatterns =
         | SpecificCall <@@ (|>) @@> (None, _, [left; InlineLambdaAndLet right]) -> Some (left, right)
         | _ -> None
 
-    let rec (|BindingModifiers|) expr =
-        match expr with
+    let rec (|BindingModifiers|) = function
         | PipedExpression (BindingModifiers (expr, leftConverter, leftUpdateMode),
                            BindingModifier (rightConverter, rightUpdateMode)) ->
             let converter = BindingConverters.composeOptions leftConverter rightConverter
@@ -148,10 +141,9 @@ module BindingPatterns =
                 | _, Some mode -> Some mode
                 | _ -> leftUpdateMode
             (expr, converter, updateMode)
-        | _ -> (expr, None, None)
+        | expr -> (expr, None, None)
 
-    let rec (|BindPropertyExpression|_|) expr =
-        match expr with
+    let rec (|BindPropertyExpression|_|) = function
         | BindingModifiers (PropertyExpression (src, srcMember), converter, updateMode) ->
             Some (src, srcMember, converter, updateMode)
         | Coerce (BindPropertyExpression (src, srcMember, converter, updateMode), _) ->
@@ -164,8 +156,7 @@ module BindingPatterns =
             Some (src, srcMember, newConverter, updateMode)
         | _ -> None
 
-    let (|BindExpression|_|) assignExpr =
-        match assignExpr with
+    let (|BindExpression|_|) = function
         | PropertySet (ControlExpression control,
                        controlProp,
                        [],
@@ -180,8 +171,7 @@ module BindingPatterns =
             }
         | _ -> None
 
-    let private (|MaybePipedCall|_|) expr =
-        match expr with
+    let private (|MaybePipedCall|_|) = function
         | PipedExpression (lastArg, Call (instance, methodInfo, callArgs)) ->
             // the right side is a lambda that calls the function with the lambda parameter as the last arg
             // swap the last arg with the left side of the pipe
@@ -200,8 +190,7 @@ module BindingPatterns =
             Some (func :?> 'a -> unit, arg)
         | _ -> None
 
-    let rec private (|BindToViewFuncArgs|_|) expr =
-        match expr with
+    let rec private (|BindToViewFuncArgs|_|) = function
         | [PropertyExpression (src, prop)] -> Some ([], src, prop)
         | [Coerce (PropertyExpression (src, prop), _)] -> Some ([], src, prop)
         | argExpr :: BindToViewFuncArgs (args, src, prop) ->
@@ -213,8 +202,7 @@ module BindingPatterns =
             Some (arg :: args, src, prop)
         | _ -> None
 
-    let (|BindToViewFunc|_|) callExpr =
-        match callExpr with
+    let (|BindToViewFunc|_|) = function
         | MaybePipedCall (instanceExpr, methodInfo, BindToViewFuncArgs (otherArgs, src, prop)) ->
             let instance = instanceExpr |> Option.map QuotationEvaluator.EvaluateUntyped |> Option.toObj
             let updateView = (fun a ->
@@ -224,6 +212,12 @@ module BindingPatterns =
         | MaybePipedApplication (func, PropertyExpression (src, prop)) -> Some (src, prop, func)
         | _ -> None
 
+
+type Binding = {
+    ModelProperty: PropertyInfo
+    ViewChanged: IObservable<obj>
+    SetView: obj -> unit
+}
 
 type BindingProxy(initValue) =
     let mutable value = initValue
@@ -245,12 +239,6 @@ type BindingProxy(initValue) =
         modelChanged.Trigger(null, PropertyChangedEventArgs("Value"))
 
     static member Property = typedefof<BindingProxy>.GetProperty("Value")
-
-type Binding = {
-    ModelProperty: PropertyInfo
-    ViewChanged: IObservable<obj>
-    SetView: obj -> unit
-}
 
 type BindingInfo<'Control> with
     member this.CreateProxyBinding () =
