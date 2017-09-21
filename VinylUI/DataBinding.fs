@@ -180,14 +180,30 @@ module BindingPatterns =
         | Call (instance, methodInfo, args) -> Some (instance, methodInfo, args)
         | _ -> None
 
+    let private toUntypedFunc (func: obj) =
+        let rec findFuncType (t: Type) =
+            if t.Name = "FSharpFunc`2" then t
+            else if t.BaseType <> typedefof<obj> then findFuncType t.BaseType
+            else failwith "Expected function value"
+        let ftype = findFuncType (func.GetType())
+        let argType = ftype.GetGenericArguments().[0]
+        // create wrapping function that casts obj arg to inner func's arg type before calling it
+        let var = Quotations.Var ("__v__", typedefof<obj>)
+        let wrapper = Expr.Lambda (var, Expr.Application (Expr.Coerce (Expr.Value func, ftype),
+                                                          Expr.Coerce (Expr.Var var, argType)))
+        QuotationEvaluator.EvaluateUntyped wrapper :?> obj -> unit
+
     let private (|MaybePipedApplication|_|) = function
         | PipedExpression (arg, ValueWithName (func, _, _))
         | Application (ValueWithName (func, _, _), arg) ->
-            Some (func :?> 'a -> unit, arg)
-        | SpecificCall <@@ (|>) @@> (None, _, [arg; Lambda a])
-        | Application (Lambda a, arg) ->
-            let func = QuotationEvaluator.EvaluateUntyped (Expr.Lambda a)
-            Some (func :?> 'a -> unit, arg)
+            Some (toUntypedFunc func, arg)
+        | SpecificCall <@@ (|>) @@> (None, _, [arg; Lambda (var, body)])
+        | Application (Lambda (var, body), arg) ->
+            let newVar = Quotations.Var ((var.Name + "__"), typedefof<obj>)
+            let body = body.Substitute (fun v ->
+                if v.Name = var.Name then Some (Expr.Coerce (Expr.Var newVar, var.Type)) else None)
+            let func = QuotationEvaluator.EvaluateUntyped (Expr.Lambda (newVar, body))
+            Some (func :?> obj -> unit, arg)
         | _ -> None
 
     let rec private (|BindToViewFuncArgs|_|) = function

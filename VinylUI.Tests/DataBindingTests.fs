@@ -184,6 +184,16 @@ let ``BindToViewFunc parses call to local function`` piped =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
+let ``BindToViewFunc parses call to local function untyped`` piped =
+    let update (x: string) = updateViewWithObj x
+    let expr = if piped then <@ model.Name |> update @> else <@ update model.Name @>
+    let src, prop, func = expr |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func (box "") // should not throw
+
+[<TestCase(false)>]
+[<TestCase(true)>]
 let ``BindToViewFunc parses call to local function value`` piped =
     let update : string -> unit = updateViewWithObj
     let expr = if piped then <@ model.Name |> update @> else <@ update model.Name @>
@@ -203,6 +213,19 @@ let ``BindToViewFunc parses call to lambda`` piped =
     src |> should equal model
     prop |> shouldEqual Model.NameProperty
     func "splat" // should not throw
+    control.Text |> shouldEqual "splat"
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``BindToViewFunc parses call to lambda untyped`` piped =
+    let control = Control()
+    let expr =
+        if piped then <@ model.Name |> (fun n -> control.Text <- n) @>
+        else <@ (fun n -> control.Text <- n) model.Name @>
+    let src, prop, func = expr |> bindToViewFunc
+    src |> should equal model
+    prop |> shouldEqual Model.NameProperty
+    func (box "splat") // should not throw
     control.Text |> shouldEqual "splat"
 
 
