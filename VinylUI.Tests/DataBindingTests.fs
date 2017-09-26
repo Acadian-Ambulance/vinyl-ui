@@ -29,18 +29,21 @@ type Model = {
     Number: int
     Age: int option
     Books: Book seq
+    FavColor: string option
 }
 with
     static member NameProperty = typedefof<Model>.GetProperty("Name")
     static member NumberProperty = typedefof<Model>.GetProperty("Number")
     static member AgeProperty = typedefof<Model>.GetProperty("Age")
     static member BooksProperty = typedefof<Model>.GetProperty("Books")
+    static member FavColorProperty = typedefof<Model>.GetProperty("FavColor")
 
 let control = Control()
 let form = { MyControl = control }
 let model = { Name = "tim"; Number = 2; Age = Some 25
               Books = [ { ISBN = "a1"; Name = "Cooking with Fire" }
                         { ISBN = "b9"; Name = "Something Like That" } ]
+              FavColor = Some "Mauve"
             }
 
 let bindInfo controlProp sourceProp hasConverter updateMode =
@@ -95,6 +98,12 @@ let ``BindExpression parses set control obj property to model option property wi
     <@ control.ObjValue <- model.Age |> Option.toNullable @>
     |> bindExpression
     |> bindInfoMatches (bindInfo Control.ObjValueProperty Model.AgeProperty true None)
+
+[<Test>]
+let ``BindExpression parses set control property to model option property with explicit converter``() =
+    <@ control.Text <- model.FavColor |> Option.toObj @>
+    |> bindExpression
+    |> bindInfoMatches (bindInfo Control.TextProperty Model.FavColorProperty true None)
 
 [<Test>]
 let ``BindExpression parses set control nullable property to model property, uses converter``() =

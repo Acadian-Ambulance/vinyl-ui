@@ -108,6 +108,8 @@ module BindingPatterns =
     let private (|ConvertModifier|_|) = function
         | SpecificCall <@@ Option.toNullable @@> (_, [genArg], _) ->
             Some (BindingConverters.optionToNullable genArg)
+        | SpecificCall <@@ Option.toObj @@> (_, [genArg], _) ->
+            Some (BindingConverters.optionToObj genArg)
         | GenericConstructor (genType, wrappedType) when genType = typedefof<Nullable<_>> ->
             Some (BindingConverters.wrapInNullable wrappedType)
         | _ -> None
