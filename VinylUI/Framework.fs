@@ -53,7 +53,20 @@ module Model =
             |> Seq.filter (fun b -> b.ModelProperty = prop)
             |> Seq.iter (fun b -> b.SetView value))
 
+type ISignal<'a> =
+    inherit IObservable<'a>
+    abstract Value: 'a with get
+
 module Framework =
+    type Signal<'a>(subject: BehaviorSubject<'a>) =
+        interface ISignal<'a> with
+            member this.Subscribe o = subject.Subscribe o
+            member this.Value = subject.Value
+
+        member this.Value
+            with get () = subject.Value
+            and set value = subject.OnNext value
+
     let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
         let error = fun(exn, _) -> ExceptionDispatchInfo.Capture(exn).Throw()
 
@@ -61,7 +74,7 @@ module Framework =
         let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
         let computedProps = Model.computedProperties props
 
-        let modelSubject = new BehaviorSubject<'Model>(initialModel)
+        let modelSubject = new BehaviorSubject<'Model>(initialModel) |> Signal
 
         // subscribe to control changes to update the model
         let exceptRef a = Seq.filter (fun x -> not <| obj.ReferenceEquals(x, a))
@@ -69,7 +82,7 @@ module Framework =
             binding.ViewChanged.Add (fun value ->
                 let change = binding.ModelProperty, value
                 let prevModel = modelSubject.Value
-                modelSubject.OnNext <| Model.permute modelSubject.Value [change]
+                modelSubject.Value <- Model.permute modelSubject.Value [change]
                 let computedChanges = Model.changes computedProps prevModel modelSubject.Value |> Seq.toList
                 Model.updateView (bindings |> exceptRef binding) (change :: computedChanges)))
 
@@ -83,7 +96,7 @@ module Framework =
                     try
                         let changes = eventHandler modelSubject.Value |> Model.changes props modelSubject.Value
                         changes |> Model.updateView bindings
-                        modelSubject.OnNext <| Model.permute modelSubject.Value changes
+                        modelSubject.Value <- Model.permute modelSubject.Value changes
                     with exn -> error(exn, event)
                 | Async eventHandler ->
                     Async.StartWithContinuations(
@@ -94,7 +107,7 @@ module Framework =
                         },
                         continuation = (fun changes ->
                             changes |> Model.updateView bindings
-                            modelSubject.OnNext <| Model.permute modelSubject.Value changes
+                            modelSubject.Value <- Model.permute modelSubject.Value changes
                         ),
                         exceptionContinuation = (fun exn -> error(exn, event)),
                         cancellationContinuation = ignore))
@@ -105,4 +118,4 @@ module Framework =
             |> Observer.notifyOnDispatcher
             |> eventStream.Subscribe
 
-        (modelSubject, subscription)
+        (modelSubject :> ISignal<'Model>, subscription)
