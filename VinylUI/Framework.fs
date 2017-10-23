@@ -2,6 +2,7 @@
 
 open System
 open System.Reactive
+open System.Reactive.Subjects
 open System.Reactive.Linq
 open System.Runtime.ExceptionServices
 open System.Reflection
@@ -52,7 +53,20 @@ module Model =
             |> Seq.filter (fun b -> b.ModelProperty = prop)
             |> Seq.iter (fun b -> b.SetView value))
 
+type ISignal<'a> =
+    inherit IObservable<'a>
+    abstract Value: 'a with get
+
 module Framework =
+    type Signal<'a>(subject: BehaviorSubject<'a>) =
+        interface ISignal<'a> with
+            member this.Subscribe o = subject.Subscribe o
+            member this.Value = subject.Value
+
+        member this.Value
+            with get () = subject.Value
+            and set value = subject.OnNext value
+
     let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
         let error = fun(exn, _) -> ExceptionDispatchInfo.Capture(exn).Throw()
 
@@ -60,45 +74,48 @@ module Framework =
         let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
         let computedProps = Model.computedProperties props
 
-        let mutable currentModel = initialModel
+        let modelSubject = new BehaviorSubject<'Model>(initialModel) |> Signal
 
         // subscribe to control changes to update the model
         let exceptRef a = Seq.filter (fun x -> not <| obj.ReferenceEquals(x, a))
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
                 let change = binding.ModelProperty, value
-                let prevModel = currentModel
-                currentModel <- Model.permute currentModel [change]
-                let computedChanges = Model.changes computedProps prevModel currentModel |> Seq.toList
+                let prevModel = modelSubject.Value
+                modelSubject.Value <- Model.permute modelSubject.Value [change]
+                let computedChanges = Model.changes computedProps prevModel modelSubject.Value |> Seq.toList
                 Model.updateView (bindings |> exceptRef binding) (change :: computedChanges)))
 
         let eventList : IObservable<'Event> list = events view
         let eventStream = eventList.Merge()
 
-        Observer.Create(fun event ->
-            match dispatcher event with
-            | Sync eventHandler ->
-                try
-                    let changes = eventHandler currentModel |> Model.changes props currentModel
-                    changes |> Model.updateView bindings
-                    currentModel <- Model.permute currentModel changes
-                with exn -> error(exn, event)
-            | Async eventHandler ->
-                Async.StartWithContinuations(
-                    computation = async {
-                        let originalModel = currentModel
-                        let! newModel = eventHandler originalModel
-                        return newModel |> Model.changes props originalModel
-                    },
-                    continuation = (fun changes ->
+        let subscription =
+            Observer.Create(fun event ->
+                match dispatcher event with
+                | Sync eventHandler ->
+                    try
+                        let changes = eventHandler modelSubject.Value |> Model.changes props modelSubject.Value
                         changes |> Model.updateView bindings
-                        currentModel <- Model.permute currentModel changes
-                    ),
-                    exceptionContinuation = (fun exn -> error(exn, event)),
-                    cancellationContinuation = ignore))
-    #if DEBUG
-        |> Observer.Checked
-    #endif
-        |> Observer.preventReentrancy
-        |> Observer.notifyOnDispatcher
-        |> eventStream.Subscribe
+                        modelSubject.Value <- Model.permute modelSubject.Value changes
+                    with exn -> error(exn, event)
+                | Async eventHandler ->
+                    Async.StartWithContinuations(
+                        computation = async {
+                            let originalModel = modelSubject.Value
+                            let! newModel = eventHandler originalModel
+                            return newModel |> Model.changes props originalModel
+                        },
+                        continuation = (fun changes ->
+                            changes |> Model.updateView bindings
+                            modelSubject.Value <- Model.permute modelSubject.Value changes
+                        ),
+                        exceptionContinuation = (fun exn -> error(exn, event)),
+                        cancellationContinuation = ignore))
+        #if DEBUG
+            |> Observer.Checked
+        #endif
+            |> Observer.preventReentrancy
+            |> Observer.notifyOnDispatcher
+            |> eventStream.Subscribe
+
+        (modelSubject :> ISignal<'Model>, subscription)
