@@ -51,6 +51,16 @@ module DataBind =
     /// a view property from a model property or a call to a function passing a model property.
     let fromExpr assignExprs = CommonBinding.fromExpr createBinding assignExprs
 
+    /// temporary helper
+    let fromProp source (property: PropertyInfo) (updateView: 'a -> unit) =
+        updateView (property.GetValue source :?> 'a)
+        let binding = {
+            ModelProperty = property
+            ViewChanged = Event<_>().Publish
+            SetView = (fun o -> updateView (o :?> 'a))
+        }
+        binding
+
 
 /// Helpers for setting the DataSource of ListControls
 module ListSource =
