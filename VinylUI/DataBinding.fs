@@ -250,11 +250,14 @@ type BindingProxy(initValue) =
     /// Used for databinding to the view
     member this.Value
         with get () = value
-        and set v = viewChanged.Trigger v
+        and set v =
+            if value <> v then
+                value <- v
+                viewChanged.Trigger v
 
     member this.SetView v =
         value <- v
-        modelChanged.Trigger(null, PropertyChangedEventArgs("Value"))
+        modelChanged.Trigger(this, PropertyChangedEventArgs("Value"))
 
     static member Property = typedefof<BindingProxy>.GetProperty("Value")
 
@@ -266,7 +269,7 @@ type BindingInfo<'Control> with
         let binding = {
             ModelProperty = this.SourceProperty
             ViewChanged = proxy.ViewChanged
-            SetView = (fun v -> proxy.Value <- v)
+            SetView = proxy.SetView
         }
         proxyBindInfo, binding
 
