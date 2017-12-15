@@ -30,7 +30,7 @@ module DataBind =
 
     let createBinding (bindingInfo: BindingInfo<Control>) =
         let b = bindingInfo
-        let bindingUpdateMode = getUpdateModeFor b.ControlProperty b.UpdateMode
+        let bindingUpdateMode = getUpdateModeFor b.ControlProperty b.SourceUpdateMode
         let controlBinding = WinBinding(b.ControlProperty.Name,
                                         b.Source,
                                         b.SourceProperty.Name,

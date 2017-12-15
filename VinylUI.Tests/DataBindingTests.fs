@@ -49,7 +49,7 @@ let model = { Name = "tim"; Number = 2; Age = Some 25
 let bindInfo controlProp sourceProp hasConverter updateMode =
     let converter = if hasConverter then Some { ToControl = id; ToSource = id } else None
     { Control = control :> obj; ControlProperty = controlProp; Source = model; SourceProperty = sourceProp
-      Converter = converter; UpdateMode = updateMode
+      Converter = converter; SourceUpdateMode = updateMode
     }
 
 let bindExpression expr =
@@ -63,7 +63,7 @@ let bindInfoMatches expected actual =
     actual.Source |> shouldEqual expected.Source
     actual.SourceProperty |> shouldEqual expected.SourceProperty
     actual.Converter.IsSome |> shouldEqual expected.Converter.IsSome
-    actual.UpdateMode |> shouldEqual expected.UpdateMode
+    actual.SourceUpdateMode |> shouldEqual expected.SourceUpdateMode
 
 [<Test>]
 let ``BindExpression parses set control property to model property``() =

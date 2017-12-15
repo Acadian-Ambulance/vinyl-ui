@@ -8,7 +8,7 @@ open FSharp.Quotations.Patterns
 open FSharp.Quotations.DerivedPatterns
 open FSharp.Quotations.Evaluator
 
-type BindingUpdateMode =
+type SourceUpdateMode =
     | OnValidation
     | OnChange
     | Never
@@ -24,7 +24,7 @@ type BindingInfo<'Control> = {
     Source: obj
     SourceProperty: PropertyInfo
     Converter: BindingConverter<obj, obj> option
-    UpdateMode: BindingUpdateMode option
+    SourceUpdateMode: SourceUpdateMode option
 }
 
 module BindingConverters =
@@ -169,7 +169,7 @@ module BindingPatterns =
                 Source = source
                 SourceProperty = sourceProp
                 Converter = converter
-                UpdateMode = updateMode
+                SourceUpdateMode = updateMode
             }
         | _ -> None
 
