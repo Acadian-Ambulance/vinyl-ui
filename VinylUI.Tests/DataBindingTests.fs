@@ -49,7 +49,7 @@ let model = { Name = "tim"; Number = 2; Age = Some 25
 let bindInfo controlProp sourceProp hasConverter updateMode =
     let converter = if hasConverter then Some { ToControl = id; ToSource = id } else None
     { Control = control :> obj; ControlProperty = controlProp; Source = model; SourceProperty = sourceProp
-      Converter = converter; SourceUpdateMode = updateMode
+      Converter = converter; BindingMode = TwoWay updateMode
     }
 
 let bindExpression expr =
@@ -63,7 +63,7 @@ let bindInfoMatches expected actual =
     actual.Source |> shouldEqual expected.Source
     actual.SourceProperty |> shouldEqual expected.SourceProperty
     actual.Converter.IsSome |> shouldEqual expected.Converter.IsSome
-    actual.SourceUpdateMode |> shouldEqual expected.SourceUpdateMode
+    actual.BindingMode |> shouldEqual expected.BindingMode
 
 [<Test>]
 let ``BindExpression parses set control property to model property``() =
@@ -129,12 +129,6 @@ let ``BindExpression parses set control property to model property with update o
     <@ control.Text <- model.Name |> BindOption.UpdateSourceOnChange @>
     |> bindExpression
     |> bindInfoMatches (bindInfo Control.TextProperty Model.NameProperty false (Some OnChange))
-
-[<Test>]
-let ``BindExpression parses set control property to model property with update never``() =
-    <@ control.Text <- model.Name |> BindOption.UpdateSourceNever @>
-    |> bindExpression
-    |> bindInfoMatches (bindInfo Control.TextProperty Model.NameProperty false (Some Never))
 
 
 let bindToViewFunc expr =

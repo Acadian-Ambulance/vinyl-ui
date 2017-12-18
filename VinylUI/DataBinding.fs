@@ -11,7 +11,11 @@ open FSharp.Quotations.Evaluator
 type SourceUpdateMode =
     | OnValidation
     | OnChange
-    | Never
+
+type BindingMode =
+    | TwoWay of SourceUpdateMode option
+    | OneWayToModel of SourceUpdateMode option
+    | OneWayToView
 
 type BindingConverter<'Source, 'Control> = {
     ToControl: 'Source -> 'Control
@@ -23,8 +27,8 @@ type BindingInfo<'Control> = {
     ControlProperty: PropertyInfo
     Source: obj
     SourceProperty: PropertyInfo
+    BindingMode: BindingMode
     Converter: BindingConverter<obj, obj> option
-    SourceUpdateMode: SourceUpdateMode option
 }
 
 module BindingConverters =
@@ -72,9 +76,6 @@ module BindOption =
     /// When used in a binding quotation, specifies that the resulting binding should update the bound source when
     /// the control property changes. The default is to update on validation.
     let UpdateSourceOnChange = undefined
-    /// When used in a binding quotation, specifies that the resulting binding should not update the bound source
-    /// (one way binding). The default is to update on validation.
-    let UpdateSourceNever = undefined
 
 module BindingPatterns =
     let (|ControlExpression|_|) (expr: Expr option) =
@@ -116,7 +117,6 @@ module BindingPatterns =
 
     let private (|UpdateModeModifier|_|) = function
         | SpecificCall <@@ BindOption.UpdateSourceOnChange @@> _ -> Some OnChange
-        | SpecificCall <@@ BindOption.UpdateSourceNever @@> _ -> Some Never
         | _ -> None
 
     let (|BindingModifier|_|) = function
@@ -169,7 +169,7 @@ module BindingPatterns =
                 Source = source
                 SourceProperty = sourceProp
                 Converter = converter
-                SourceUpdateMode = updateMode
+                BindingMode = TwoWay updateMode
             }
         | _ -> None
 

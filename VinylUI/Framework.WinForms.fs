@@ -10,15 +10,14 @@ module DataBind =
     let private convertUpdateMode = function
         | OnValidation -> DataSourceUpdateMode.OnValidation
         | OnChange -> DataSourceUpdateMode.OnPropertyChanged
-        | Never -> DataSourceUpdateMode.Never
 
     let private getUpdateModeFor (controlProperty: PropertyInfo) updateMode =
-        let withDefault =
-            match updateMode, controlProperty.Name with
-            | Some mode, _ -> mode
-            | _, "Checked" -> OnChange
-            | _ -> OnValidation
-        convertUpdateMode withDefault
+        match updateMode, controlProperty.Name with
+        | OneWayToView, _ -> DataSourceUpdateMode.Never
+        | OneWayToModel (Some mode), _
+        | TwoWay (Some mode), _ -> convertUpdateMode mode
+        | _, "Checked" -> DataSourceUpdateMode.OnPropertyChanged
+        | _ -> DataSourceUpdateMode.OnValidation
 
     let private addConverter (binding: WinBinding) (converter: BindingConverter<'s, 'c>) =
         let sanitize (ctrlValue: obj) =
@@ -30,15 +29,20 @@ module DataBind =
 
     let createBinding (bindingInfo: BindingInfo<Control>) =
         let b = bindingInfo
-        let bindingUpdateMode = getUpdateModeFor b.ControlProperty b.SourceUpdateMode
+        let sourceUpdate = getUpdateModeFor b.ControlProperty b.BindingMode
+        let controlUpdate =
+            match b.BindingMode with
+            | OneWayToModel _ -> ControlUpdateMode.Never
+            | _ -> ControlUpdateMode.OnPropertyChanged
         let controlBinding = WinBinding(b.ControlProperty.Name,
                                         b.Source,
                                         b.SourceProperty.Name,
                                         true,
-                                        bindingUpdateMode)
+                                        sourceUpdate,
+                                        ControlUpdateMode = controlUpdate)
         b.Converter |> Option.iter (addConverter controlBinding)
 
-        match b.Control, b.ControlProperty.Name, bindingUpdateMode with
+        match b.Control, b.ControlProperty.Name, sourceUpdate with
         // workaround for bindings to SelectedItem not triggering until focus is lost
         | :? ComboBox as c, "SelectedItem", DataSourceUpdateMode.OnPropertyChanged ->
             c.SelectedIndexChanged.Add (fun _ -> controlBinding.WriteValue())
