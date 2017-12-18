@@ -17,18 +17,28 @@ type BindingMode =
     | OneWayToModel of SourceUpdateMode option
     | OneWayToView
 
-type BindingConverter<'Source, 'Control> = {
+type BindingConverter<'Control, 'Source> = {
     ToControl: 'Source -> 'Control
     ToSource: 'Control -> 'Source
 }
 
-type BindingInfo<'Control> = {
+type BindingInfo<'Control, 'ControlProp, 'SourceProp> = {
     Control: 'Control
     ControlProperty: PropertyInfo
     Source: obj
     SourceProperty: PropertyInfo
     BindingMode: BindingMode
-    Converter: BindingConverter<obj, obj> option
+    Converter: BindingConverter<'ControlProp, 'SourceProp> option
+}
+
+type BindViewPart<'Control, 'View> = {
+    Control: 'Control
+    ControlProperty: PropertyInfo
+}
+
+type BindSourcePart<'Model> = {
+    Source: obj
+    SourceProperty: PropertyInfo
 }
 
 module BindingConverters =
@@ -261,7 +271,7 @@ type BindingProxy(initValue) =
 
     static member Property = typedefof<BindingProxy>.GetProperty("Value")
 
-type BindingInfo<'Control> with
+type BindingInfo<'c, 'cp, 'sp> with
     member this.CreateProxyBinding () =
         let value = this.SourceProperty.GetValue this.Source
         let proxy = BindingProxy value
@@ -274,16 +284,45 @@ type BindingInfo<'Control> with
         proxyBindInfo, binding
 
 module CommonBinding =
+    let private (|PropertyExpression|_|) = function
+        | PropertyGet (Some source, propInfo, []) ->
+            Some (QuotationEvaluator.EvaluateUntyped source, propInfo)
+        | _ -> None
+
+    let createProxy createBinding (bindInfo: BindingInfo<_, _, _>) =
+        let proxyBindInfo, binding = bindInfo.CreateProxyBinding()
+        createBinding proxyBindInfo |> ignore
+        binding
+
+    let controlPart<'Control, 'View> (controlProperty: Expr<'View>) =
+        match controlProperty with
+        | PropertyExpression (ctl, ctlProp) when typedefof<'Control>.IsAssignableFrom(ctl.GetType()) ->
+            { Control = ctl :?> 'Control; ControlProperty = ctlProp } : BindViewPart<'Control, 'View>
+        | _ -> failwith "Expected a property access expression on a control"
+
+    let modelPart (modelProperty: Expr<'Model>) =
+        match modelProperty with
+        | PropertyExpression (src, srcProp) ->
+            { Source = src; SourceProperty = srcProp } : BindSourcePart<'Model>
+        | _ -> failwith "Expected a property access expression"
+
+    let fromParts (view: BindViewPart<'Control, 'View>) (source: BindSourcePart<'Source>) mode : BindingInfo<'Control, 'View, 'Source> =
+        { Control = view.Control |> unbox<'Control>
+          ControlProperty = view.ControlProperty
+          Source = source.Source
+          SourceProperty = source.SourceProperty
+          BindingMode = mode
+          Converter = None
+        }
+
+
     /// Creates bindings from a quotation of statements, where each statement is an assignment to
     /// a view property from a model property or a call to a function passing a model property.
     let rec fromExpr createBinding assignExprs =
         let recurse = fromExpr createBinding
         match assignExprs with
         | Sequential (head, tail) -> List.append (recurse head) (recurse tail)
-        | BindingPatterns.BindExpression bindInfo ->
-            let proxyBindInfo, binding = bindInfo.CreateProxyBinding()
-            createBinding proxyBindInfo |> ignore
-            [binding]
+        | BindingPatterns.BindExpression bindInfo -> [createProxy createBinding bindInfo]
         | BindingPatterns.BindToViewFunc (source, property, updateView) ->
             updateView (property.GetValue source)
             let binding = {

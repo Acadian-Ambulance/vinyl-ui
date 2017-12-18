@@ -57,7 +57,7 @@ let bindExpression expr =
     | BindExpression bi -> bi
     | _ -> failwithf "expr did not parse: %A" expr
 
-let bindInfoMatches expected actual =
+let bindInfoMatches (expected: BindingInfo<_,_,_>) (actual: BindingInfo<_,_,_>) =
     actual.Control |> shouldEqual expected.Control
     actual.ControlProperty |> shouldEqual expected.ControlProperty
     actual.Source |> shouldEqual expected.Source

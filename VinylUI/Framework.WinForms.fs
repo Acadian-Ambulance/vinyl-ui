@@ -1,7 +1,10 @@
 ﻿namespace VinylUI.WinForms
 
+open System
 open System.Reflection
 open System.Windows.Forms
+open System.Runtime.CompilerServices
+open Microsoft.FSharp.Quotations
 open VinylUI
 
 type WinBinding = System.Windows.Forms.Binding
@@ -19,15 +22,15 @@ module DataBind =
         | _, "Checked" -> DataSourceUpdateMode.OnPropertyChanged
         | _ -> DataSourceUpdateMode.OnValidation
 
-    let private addConverter (binding: WinBinding) (converter: BindingConverter<'s, 'c>) =
+    let private addConverter (binding: WinBinding) (converter: BindingConverter<'c, 's>) =
         let sanitize (ctrlValue: obj) =
             match ctrlValue with
-            | :? System.DBNull -> Unchecked.defaultof<'c>
+            | :? DBNull -> Unchecked.defaultof<'c>
             | value -> value :?> 'c
         binding.Format.Add (fun e -> e.Value <- e.Value :?> 's |> converter.ToControl)
         binding.Parse.Add (fun e -> e.Value <- e.Value |> sanitize |> converter.ToSource)
 
-    let createBinding (bindingInfo: BindingInfo<Control>) =
+    let createBinding (bindingInfo: BindingInfo<Control, 'c, 's>) =
         let b = bindingInfo
         let sourceUpdate = getUpdateModeFor b.ControlProperty b.BindingMode
         let controlUpdate =
@@ -68,6 +71,108 @@ module DataBind =
         binding
 
 
+module Bind =
+    /// Start the creation of a binding on a control property
+    let view controlProperty = CommonBinding.controlPart<Control, 'View> controlProperty
+
+    /// Start the creation of a binding on a model property
+    let model modelProperty = CommonBinding.modelPart modelProperty
+
+[<Extension; AutoOpen>]
+type BindPartExtensions =
+    // used via reflection
+    static member private _objToOptionVal () =
+        { ToSource = unbox<Nullable<'a>> >> Option.ofNullable
+          ToControl = Option.toNullable >> box }
+    static member private _objToOptionRef () =
+        { ToSource = unbox<'a> >> Option.ofObj
+          ToControl = Option.toObj >> box }
+
+    static member private getObjConverter<'a> () =
+        if typedefof<'a> = typedefof<option<_>> then
+            let wrappedT = typeof<'a>.GetGenericArguments().[0]
+            let kind = if wrappedT.IsValueType then "Val" else "Ref"
+            typedefof<BindPartExtensions>.GetMethod("_objToOption" + kind, BindingFlags.Static ||| BindingFlags.NonPublic)
+                                         .MakeGenericMethod([| wrappedT |])
+                                         .Invoke(null, null) :?> BindingConverter<obj, 'a>
+        else
+            { ToSource = unbox<'a>
+              ToControl = box }
+
+
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, 'View>, modelProperty: Expr<'View>, ?sourceUpdateMode) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode)
+        |> CommonBinding.createProxy DataBind.createBinding
+
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, 'View>, modelProperty: Expr<'Model>, toModel: 'View -> 'Model, toView: 'Model -> 'View, ?sourceUpdateMode) =
+        { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode) with
+            Converter = Some { ToControl = toView; ToSource = toModel }
+        } |> CommonBinding.createProxy DataBind.createBinding
+
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, Option.ofNullable, Option.toNullable, ?sourceUpdateMode = sourceUpdateMode)
+
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, obj>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
+        let converter = BindPartExtensions.getObjConverter<'a>()
+        view.toModel(modelProperty, converter.ToSource, converter.ToControl, ?sourceUpdateMode = sourceUpdateMode)
+
+
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, 'View>, modelProperty: Expr<'View>, ?sourceUpdateMode) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode)
+        |> CommonBinding.createProxy DataBind.createBinding
+
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, 'View>, modelProperty: Expr<'Model>, toModel: 'View -> 'Model, ?sourceUpdateMode) =
+        { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode) with
+            Converter = Some { ToControl = (fun _ -> failwith "one way binding"); ToSource = toModel }
+        } |> CommonBinding.createProxy DataBind.createBinding
+
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
+        view.toModelOneWay(modelProperty, Option.ofNullable, ?sourceUpdateMode = sourceUpdateMode)
+
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, obj>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
+        let converter = BindPartExtensions.getObjConverter<'a>()
+        view.toModelOneWay(modelProperty, converter.ToSource, ?sourceUpdateMode = sourceUpdateMode)
+
+
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<'Model>, viewProperty: Expr<'Model>) =
+        CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView
+        |> CommonBinding.createProxy DataBind.createBinding
+
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<'Model>, viewProperty: Expr<'View>, toView: 'Model -> 'View) =
+        { CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView with
+            Converter = Some { ToControl = toView; ToSource = (fun _ -> failwith "one way binding") }
+        } |> CommonBinding.createProxy DataBind.createBinding
+
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<Nullable<'a>>) =
+        source.toViewOneWay(viewProperty, Option.toNullable)
+
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<obj>) =
+        let converter = BindPartExtensions.getObjConverter<'a>()
+        source.toViewOneWay(viewProperty, converter.ToControl)
+
+
+    [<Extension>]
+    static member toFunc (source: BindSourcePart<'Model>, updateView: 'Model -> unit) =
+        let update = unbox<'Model> >> updateView
+        update (source.SourceProperty.GetValue source.Source)
+        { ModelProperty = source.SourceProperty
+          ViewChanged = Event<_>().Publish
+          SetView = update
+        }
+
+
 /// Helpers for setting the DataSource of ListControls
 module ListSource =
     open System.Collections.Generic
@@ -85,6 +190,8 @@ module ListSource =
         control.DisplayMember <- displayMember
         control.ValueMember <- valueMember
         control.SelectedIndex <- -1
+
+    // TODO: move these to BindSourcePart overloads `toSource`
 
     let fromSeq control (displayValueProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
         let (displayMember, valueMember) =

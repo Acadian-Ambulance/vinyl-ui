@@ -57,12 +57,14 @@
     <Content Include="App.config" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="DataBindingTests.fs" />
+    <Compile Include="DataBindingWinFormsTests.fs" />
     <Compile Include="FrameworkTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
