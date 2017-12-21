@@ -21,11 +21,12 @@ type Model = {
     Name: string
     NickName: string option
     Age: int option
-    Books: Book seq
+    Books: Book list
 }
 with
     static member IdProperty = typedefof<Model>.GetProperty("Id")
     static member NameProperty = typedefof<Model>.GetProperty("Name")
+    static member BooksProperty = typedefof<Model>.GetProperty("Books")
 
 let model = { Id = 2
               Name = "Dan"
@@ -301,3 +302,16 @@ let ``Bind model to func`` () =
     (fVal, fCount) |> shouldEqual (Some model.Name, 1)
     binding.SetView (box "Bob")
     (fVal, fCount) |> shouldEqual (Some "Bob", 2)
+
+// model to data source
+
+[<Test>]
+let ``Bind model to data source`` () =
+    use form = new FakeForm()
+    let getList () = form.ListBox.DataSource :?> Book seq |> Seq.toList
+    let binding = Bind.model(<@ model.Books @>).toDataSource(form.ListBox, <@ fun b -> b.Name, b.Id @>)
+    binding.ModelProperty |> shouldEqual Model.BooksProperty
+    getList () |> shouldEqual model.Books
+    let newList = [ { Id = 99; Name = "Dependency Injection" } ]
+    binding.SetView (box newList)
+    getList () |> shouldEqual newList

@@ -4,6 +4,7 @@ open System
 open System.Reflection
 open System.Windows.Forms
 open System.Runtime.CompilerServices
+open System.Collections.Generic
 open Microsoft.FSharp.Quotations
 open VinylUI
 
@@ -69,6 +70,41 @@ module DataBind =
             SetView = (fun o -> updateView (o :?> 'a))
         }
         binding
+
+
+/// Helpers for setting the DataSource of ListControls
+module ListSource =
+    open VinylUI.BindingPatterns
+
+    let private setSource (control: ListControl) (source: 'a seq) displayMember valueMember =
+        control.DataSource <- null
+        (* we have to set the members both before and after setting the DataSource. We have to set it before in case
+         * event handlers try to read a value as soon as the DataSource is set, and we have to set it after because 
+         * CheckedListBox and DataGridViewComboBoxEditingControl forget their DisplayMember when DataSource is set *)
+        control.DisplayMember <- displayMember
+        control.ValueMember <- valueMember
+        control.DataSource <- ResizeArray source
+        control.DisplayMember <- displayMember
+        control.ValueMember <- valueMember
+        control.SelectedIndex <- -1
+
+    /// Set the DataSource to a sequence of objects.
+    /// `displayValueProperties` should be a quotation of a function that takes an item and returns a tuple of the
+    /// display then value properties, e.g. <@ fun x -> x.Name, x.Id @>
+    let fromSeq control (displayValueProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
+        let (displayMember, valueMember) =
+            match displayValueProperties with
+            | PropertyTupleSelector (displayProp, valueProp) -> (displayProp.Name, valueProp.Name)
+            | _ -> failwith (sprintf "Expected an expression that selects a tuple of the display property and value property, but was given %A" displayValueProperties)
+        setSource control source displayMember valueMember
+
+    /// Set the DataSource to the contents of a dictionary.
+    /// The keys will be the control items' values and the dictionary values will be the items' text.
+    let fromDict control (source: IDictionary<'value, 'display>) =
+        setSource control source "Value" "Key"
+
+    /// Set the DataSource to a sequence of value * display pairs.
+    let fromPairs (control: ListControl) (source: ('value * 'display) seq) = fromDict control (dict source)
 
 
 module Bind =
@@ -172,38 +208,14 @@ type BindPartExtensions =
           SetView = update
         }
 
+    [<Extension>]
+    static member toDataSource (source: BindSourcePart<_>, control, displayValueProperties) =
+        source.toFunc(ListSource.fromSeq control displayValueProperties)
 
-/// Helpers for setting the DataSource of ListControls
-module ListSource =
-    open System.Collections.Generic
-    open Microsoft.FSharp.Quotations
-    open VinylUI.BindingPatterns
+    [<Extension>]
+    static member toDataSource (source: BindSourcePart<IDictionary<'value, 'display>>, control) =
+        source.toFunc(ListSource.fromDict control)
 
-    let private setSource (control: ListControl) (source: 'a seq) displayMember valueMember =
-        control.DataSource <- null
-        (* we have to set the members both before and after setting the DataSource. We have to set it before in case
-         * event handlers try to read a value as soon as the DataSource is set, and we have to set it after because 
-         * CheckedListBox and DataGridViewComboBoxEditingControl forget their DisplayMember when DataSource is set *)
-        control.DisplayMember <- displayMember
-        control.ValueMember <- valueMember
-        control.DataSource <- List source
-        control.DisplayMember <- displayMember
-        control.ValueMember <- valueMember
-        control.SelectedIndex <- -1
-
-    // TODO: move these to BindSourcePart overloads `toSource`
-
-    let fromSeq control (displayValueProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
-        let (displayMember, valueMember) =
-            match displayValueProperties with
-            | PropertyTupleSelector (displayProp, valueProp) -> (displayProp.Name, valueProp.Name)
-            | _ -> failwith (sprintf "Expected an expression that selects a tuple of the display property and value property, but was given %A" displayValueProperties)
-        setSource control source displayMember valueMember
-
-    /// Set the DataSource to the contents of a dictionary.
-    /// The keys will be the control items' values and the dictionary values will be the items' text.
-    let fromDict control (source: IDictionary<'value, 'display>) =
-        setSource control source "Value" "Key"
-
-    /// Set the DataSource to a sequence of value * display pairs.
-    let fromPairs (control: ListControl) (source: ('value * 'display) seq) = fromDict control (dict source)
+    [<Extension>]
+    static member toDataSource (source: BindSourcePart<('value * 'display) seq>, control) =
+        source.toFunc(ListSource.fromPairs control)
