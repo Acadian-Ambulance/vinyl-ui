@@ -107,6 +107,7 @@ module ListSource =
     let fromPairs (control: ListControl) (source: ('value * 'display) seq) = fromDict control (dict source)
 
 
+/// Functions for creating bindings
 module Bind =
     /// Start the creation of a binding on a control property
     let view controlProperty = CommonBinding.controlPart<Control, 'View> controlProperty
@@ -136,86 +137,104 @@ type BindPartExtensions =
               ToControl = box }
 
 
+    /// Create a two-way binding between control and model properties of the same type.
     [<Extension>]
-    static member toModel (view: BindViewPart<Control, 'View>, modelProperty: Expr<'View>, ?sourceUpdateMode) =
+    static member toModel (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
         CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode)
         |> CommonBinding.createProxy DataBind.createBinding
 
+    /// Create a two-way binding between control and model properties of different types given the conversions between them.
     [<Extension>]
-    static member toModel (view: BindViewPart<Control, 'View>, modelProperty: Expr<'Model>, toModel: 'View -> 'Model, toView: 'Model -> 'View, ?sourceUpdateMode) =
+    static member toModel (view: BindViewPart<Control, _>, modelProperty, toModel, toView, ?sourceUpdateMode) =
         { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode) with
             Converter = Some { ToControl = toView; ToSource = toModel }
         } |> CommonBinding.createProxy DataBind.createBinding
 
+    /// Create a two-way binding, automatically converting between option<'a> and Nullable<'a>.
     [<Extension>]
     static member toModel (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
         view.toModel(modelProperty, Option.ofNullable, Option.toNullable, ?sourceUpdateMode = sourceUpdateMode)
 
+    /// Create a two-way binding between an obj control property and a model property, automatically boxing and unboxing.
     [<Extension>]
     static member toModel (view: BindViewPart<Control, obj>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
         let converter = BindPartExtensions.getObjConverter<'a>()
         view.toModel(modelProperty, converter.ToSource, converter.ToControl, ?sourceUpdateMode = sourceUpdateMode)
 
 
+    /// Create a one-way binding from a control property to a model property of the same type.
     [<Extension>]
-    static member toModelOneWay (view: BindViewPart<Control, 'View>, modelProperty: Expr<'View>, ?sourceUpdateMode) =
+    static member toModelOneWay (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
         CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode)
         |> CommonBinding.createProxy DataBind.createBinding
 
+    /// Create a one-way binding from a control property to a model property of a different type given the conversion.
     [<Extension>]
-    static member toModelOneWay (view: BindViewPart<Control, 'View>, modelProperty: Expr<'Model>, toModel: 'View -> 'Model, ?sourceUpdateMode) =
+    static member toModelOneWay (view: BindViewPart<Control, _>, modelProperty, toModel, ?sourceUpdateMode) =
         { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode) with
             Converter = Some { ToControl = (fun _ -> failwith "one way binding"); ToSource = toModel }
         } |> CommonBinding.createProxy DataBind.createBinding
 
+    /// Create a one-way binding from a nullable control property to an option model property, automatically handling the conversion.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
         view.toModelOneWay(modelProperty, Option.ofNullable, ?sourceUpdateMode = sourceUpdateMode)
 
+    /// Create a one-way binding from an obj control property to a model property, automatically handling the unboxing.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, obj>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
         let converter = BindPartExtensions.getObjConverter<'a>()
         view.toModelOneWay(modelProperty, converter.ToSource, ?sourceUpdateMode = sourceUpdateMode)
 
 
+    /// Create a one-way binding from a model property to a control property of the same type.
     [<Extension>]
-    static member toViewOneWay (source: BindSourcePart<'Model>, viewProperty: Expr<'Model>) =
+    static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<'a>) =
         CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView
         |> CommonBinding.createProxy DataBind.createBinding
 
+    /// Create a one-way binding from a model property to a control property of a different type given the conversion.
     [<Extension>]
-    static member toViewOneWay (source: BindSourcePart<'Model>, viewProperty: Expr<'View>, toView: 'Model -> 'View) =
+    static member toViewOneWay (source: BindSourcePart<_>, viewProperty, toView) =
         { CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView with
             Converter = Some { ToControl = toView; ToSource = (fun _ -> failwith "one way binding") }
         } |> CommonBinding.createProxy DataBind.createBinding
 
+    /// Create a one-way binding from a option model property to an nullable control property, automatically handling the conversion.
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<Nullable<'a>>) =
         source.toViewOneWay(viewProperty, Option.toNullable)
 
+    /// Create a one-way binding from a model property to an obj control property, automatically handling the boxing.
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<obj>) =
         let converter = BindPartExtensions.getObjConverter<'a>()
         source.toViewOneWay(viewProperty, converter.ToControl)
 
 
+    /// Create a one-way binding from a model property to a function call that updates the view.
     [<Extension>]
-    static member toFunc (source: BindSourcePart<'Model>, updateView: 'Model -> unit) =
-        let update = unbox<'Model> >> updateView
+    static member toFunc (source: BindSourcePart<'a>, updateView) =
+        let update = unbox<'a> >> updateView
         update (source.SourceProperty.GetValue source.Source)
         { ModelProperty = source.SourceProperty
           ViewChanged = Event<_>().Publish
           SetView = update
         }
 
+    /// Create a one-way binding from a model property to the DataSource of a ListControl.
+    /// `displayValueProperties` should be a quotation of a function that takes an item and returns a tuple of the
+    /// display then value properties, e.g. <@ fun x -> x.Name, x.Id @>
     [<Extension>]
     static member toDataSource (source: BindSourcePart<_>, control, displayValueProperties) =
         source.toFunc(ListSource.fromSeq control displayValueProperties)
 
+    /// Create a one-way binding from a model property to the DataSource of a ListControl.
     [<Extension>]
     static member toDataSource (source: BindSourcePart<IDictionary<'value, 'display>>, control) =
         source.toFunc(ListSource.fromDict control)
 
+    /// Create a one-way binding from a model property to the DataSource of a ListControl.
     [<Extension>]
-    static member toDataSource (source: BindSourcePart<('value * 'display) seq>, control) =
+    static member toDataSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
