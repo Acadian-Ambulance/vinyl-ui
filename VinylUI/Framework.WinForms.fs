@@ -46,13 +46,13 @@ module DataBind =
                                         ControlUpdateMode = controlUpdate)
         b.Converter |> Option.iter (addConverter controlBinding)
 
-        match b.Control, b.ControlProperty.Name, sourceUpdate with
         // workaround for bindings to SelectedItem not triggering until focus is lost
-        | :? ComboBox as c, "SelectedItem", DataSourceUpdateMode.OnPropertyChanged ->
-            c.SelectedIndexChanged.Add (fun _ -> controlBinding.WriteValue())
-        | :? ListBox as c, "SelectedItem", DataSourceUpdateMode.OnPropertyChanged ->
-            c.SelectedIndexChanged.Add (fun _ -> controlBinding.WriteValue())
-        | _ -> ()
+        if b.ControlProperty.Name = "SelectedItem" && sourceUpdate = DataSourceUpdateMode.OnPropertyChanged then
+            let write _ = controlBinding.WriteValue()
+            match b.Control with
+            | :? ComboBox as c -> c.SelectedIndexChanged.Add write
+            | :? ListBox as c -> c.SelectedIndexChanged.Add write
+            | _ -> ()
 
         b.Control.DataBindings.Add controlBinding
         controlBinding
