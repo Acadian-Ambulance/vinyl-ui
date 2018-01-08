@@ -105,10 +105,10 @@ module Bind =
 type BindPartExtensions =
     // used via reflection
     static member private _objToOptionVal () =
-        { ToSource = unbox<Nullable<'a>> >> Option.ofNullable
+        { ToSource = unbox >> Option.ofNullable
           ToControl = Option.toNullable >> box }
     static member private _objToOptionRef () =
-        { ToSource = unbox<'a> >> Option.ofObj
+        { ToSource = (fun x -> if x = null then None else x |> unbox |> Option.ofObj)
           ToControl = Option.toObj >> box }
 
     static member private getObjConverter<'a> () =
@@ -119,7 +119,7 @@ type BindPartExtensions =
                                          .MakeGenericMethod([| wrappedT |])
                                          .Invoke(null, null) :?> BindingConverter<obj, 'a>
         else
-            { ToSource = unbox<'a>
+            { ToSource = unbox
               ToControl = box }
 
 
