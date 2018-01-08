@@ -82,25 +82,18 @@ type BindingProxy(initValue) =
 
     static member Property = typedefof<BindingProxy>.GetProperty("Value")
 
-type BindingInfo<'c, 'cp, 'sp> with
-    member this.CreateProxyBinding () =
-        let value = this.SourceProperty.GetValue this.Source
-        let proxy = BindingProxy value
-        let proxyBindInfo = { this with Source = proxy; SourceProperty = BindingProxy.Property }
-        let binding = {
-            ModelProperty = this.SourceProperty
-            ViewChanged = proxy.ViewChanged
-            SetView = proxy.SetView
-        }
-        proxyBindInfo, binding
-
 module CommonBinding =
     open BindingPatterns
 
     let createProxy createBinding (bindInfo: BindingInfo<_, _, _>) =
-        let proxyBindInfo, binding = bindInfo.CreateProxyBinding()
+        let value = bindInfo.SourceProperty.GetValue bindInfo.Source
+        let proxy = BindingProxy value
+        let proxyBindInfo = { bindInfo with Source = proxy; SourceProperty = BindingProxy.Property }
         createBinding proxyBindInfo |> ignore
-        binding
+        { ModelProperty = bindInfo.SourceProperty
+          ViewChanged = proxy.ViewChanged
+          SetView = proxy.SetView
+        }
 
     let controlPart<'Control, 'View> (controlProperty: Expr<'View>) =
         match controlProperty with
