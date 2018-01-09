@@ -27,8 +27,8 @@ module DataBind =
         let sanitize (ctrlValue: obj) =
             match ctrlValue with
             | :? DBNull -> Unchecked.defaultof<'c>
-            | value -> value :?> 'c
-        binding.Format.Add (fun e -> e.Value <- e.Value :?> 's |> converter.ToControl)
+            | value -> value |> unbox
+        binding.Format.Add (fun e -> e.Value <- e.Value |> unbox |> converter.ToControl)
         binding.Parse.Add (fun e -> e.Value <- e.Value |> sanitize |> converter.ToSource)
 
     let createBinding (bindingInfo: BindingInfo<Control, 'c, 's>) =
@@ -69,7 +69,7 @@ module ListSource =
          * CheckedListBox and DataGridViewComboBoxEditingControl forget their DisplayMember when DataSource is set *)
         control.DisplayMember <- displayMember
         control.ValueMember <- valueMember
-        control.DataSource <- ResizeArray source
+        control.DataSource <- Seq.toArray source
         control.DisplayMember <- displayMember
         control.ValueMember <- valueMember
         control.SelectedIndex <- -1
@@ -105,7 +105,7 @@ module Bind =
 type BindPartExtensions =
     // used via reflection
     static member private _objToOptionVal () =
-        { ToSource = unbox >> Option.ofNullable
+        { ToSource = (fun x -> x |> unbox |> Option.ofNullable)
           ToControl = Option.toNullable >> box }
     static member private _objToOptionRef () =
         { ToSource = (fun x -> if x = null then None else x |> unbox |> Option.ofObj)

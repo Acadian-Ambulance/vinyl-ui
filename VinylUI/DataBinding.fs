@@ -108,7 +108,7 @@ module CommonBinding =
         | _ -> failwith "Expected a property access expression"
 
     let fromParts (view: BindViewPart<'Control, 'View>) (source: BindSourcePart<'Source>) mode : BindingInfo<'Control, 'View, 'Source> =
-        { Control = view.Control |> unbox<'Control>
+        { Control = view.Control
           ControlProperty = view.ControlProperty
           Source = source.Source
           SourceProperty = source.SourceProperty
