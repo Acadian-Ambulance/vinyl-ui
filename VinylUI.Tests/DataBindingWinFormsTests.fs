@@ -309,9 +309,14 @@ let ``Bind model to func`` () =
 let ``Bind model to data source`` () =
     use form = new FakeForm()
     let getList () = form.ListBox.DataSource :?> Book seq |> Seq.toList
-    let binding = Bind.model(<@ model.Books @>).toDataSource(form.ListBox, <@ fun b -> b.Name, b.Id @>)
+    let binding = Bind.model(<@ model.Books @>).toDataSource(form.ListBox, <@ fun b -> b.Id, b.Name @>)
     binding.ModelProperty |> shouldEqual Model.BooksProperty
     getList () |> shouldEqual model.Books
+    form.ListBox.SelectedIndex <- 0
+    form.ListBox.SelectedItem |> unbox |> shouldEqual model.Books.[0]
+    form.ListBox.SelectedValue |> unbox |> shouldEqual model.Books.[0].Id
+    form.ListBox.Text |> shouldEqual model.Books.[0].Name
+
     let newList = [ { Id = 99; Name = "Dependency Injection" } ]
     binding.SetView (box newList)
     getList () |> shouldEqual newList

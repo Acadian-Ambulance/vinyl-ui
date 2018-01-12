@@ -62,7 +62,7 @@ module DataBind =
 module ListSource =
     open VinylUI.BindingPatterns
 
-    let private setSource (control: ListControl) (source: 'a seq) displayMember valueMember =
+    let private setSource (control: ListControl) (source: 'a seq) valueMember displayMember =
         control.DataSource <- null
         (* we have to set the members both before and after setting the DataSource. We have to set it before in case
          * event handlers try to read a value as soon as the DataSource is set, and we have to set it after because 
@@ -75,19 +75,19 @@ module ListSource =
         control.SelectedIndex <- -1
 
     /// Set the DataSource to a sequence of objects.
-    /// `displayValueProperties` should be a quotation of a function that takes an item and returns a tuple of the
-    /// display then value properties, e.g. <@ fun x -> x.Name, x.Id @>
-    let fromSeq control (displayValueProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
-        let (displayMember, valueMember) =
-            match displayValueProperties with
-            | PropertyTupleSelector (displayProp, valueProp) -> (displayProp.Name, valueProp.Name)
-            | _ -> failwith (sprintf "Expected an expression that selects a tuple of the display property and value property, but was given %A" displayValueProperties)
-        setSource control source displayMember valueMember
+    /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
+    /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
+    let fromSeq control (valueDisplayProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
+        let (valueMember, displayMember) =
+            match valueDisplayProperties with
+            | PropertyTupleSelector (valueProp, displayProp) -> (valueProp.Name, displayProp.Name)
+            | _ -> failwith (sprintf "Expected an expression that selects a tuple of the value property and display property, but was given %A" valueDisplayProperties)
+        setSource control source valueMember displayMember
 
     /// Set the DataSource to the contents of a dictionary.
     /// The keys will be the control items' values and the dictionary values will be the items' text.
     let fromDict control (source: IDictionary<'value, 'display>) =
-        setSource control source "Value" "Key"
+        setSource control source "Key" "Value"
 
     /// Set the DataSource to a sequence of value * display pairs.
     let fromPairs (control: ListControl) (source: ('value * 'display) seq) = fromDict control (dict source)
@@ -209,11 +209,11 @@ type BindPartExtensions =
         }
 
     /// Create a one-way binding from a model property to the DataSource of a ListControl.
-    /// `displayValueProperties` should be a quotation of a function that takes an item and returns a tuple of the
-    /// display then value properties, e.g. <@ fun x -> x.Name, x.Id @>
+    /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
+    /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
     [<Extension>]
-    static member toDataSource (source: BindSourcePart<_>, control, displayValueProperties) =
-        source.toFunc(ListSource.fromSeq control displayValueProperties)
+    static member toDataSource (source: BindSourcePart<_>, control, valueDisplayProperties) =
+        source.toFunc(ListSource.fromSeq control valueDisplayProperties)
 
     /// Create a one-way binding from a model property to the DataSource of a ListControl.
     [<Extension>]
