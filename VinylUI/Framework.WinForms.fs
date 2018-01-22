@@ -136,6 +136,11 @@ type BindPartExtensions =
             Converter = Some { ToControl = toView; ToSource = toModel }
         } |> CommonBinding.createProxy DataBind.createBinding
 
+    /// Create a two-way binding, automatically converting between option<'a> and 'a.
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, Option.ofObj, Option.toObj, ?sourceUpdateMode = sourceUpdateMode)
+
     /// Create a two-way binding, automatically converting between option<'a> and Nullable<'a>.
     [<Extension>]
     static member toModel (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
@@ -161,6 +166,11 @@ type BindPartExtensions =
             Converter = Some { ToControl = (fun _ -> failwith "one way binding"); ToSource = toModel }
         } |> CommonBinding.createProxy DataBind.createBinding
 
+    /// Create a one-way binding from a nullable reference control property to an option model property, automatically handling the conversion.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
+        view.toModelOneWay(modelProperty, Option.ofObj, ?sourceUpdateMode = sourceUpdateMode)
+
     /// Create a one-way binding from a nullable control property to an option model property, automatically handling the conversion.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
@@ -185,6 +195,11 @@ type BindPartExtensions =
         { CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView with
             Converter = Some { ToControl = toView; ToSource = (fun _ -> failwith "one way binding") }
         } |> CommonBinding.createProxy DataBind.createBinding
+
+    /// Create a one-way binding from a option model property to an nullable reference control property, automatically handling the conversion.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<'a>) =
+        source.toViewOneWay(viewProperty, Option.toObj)
 
     /// Create a one-way binding from a option model property to an nullable control property, automatically handling the conversion.
     [<Extension>]
