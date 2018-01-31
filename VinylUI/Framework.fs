@@ -12,9 +12,7 @@ type EventHandler<'Model> =
     | Async of ('Model -> Async<'Model>)
 
 module Model =
-    let equalIgnoreCase a b =
-        let r = String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
-        r
+    let equalIgnoreCase a b = String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
 
     let computedProperties (props: PropertyInfo seq) =
         let ctorParams = lazy ((props |> Seq.head).DeclaringType.GetConstructors().[0].GetParameters()
@@ -25,12 +23,9 @@ module Model =
 
     let changes (props: PropertyInfo seq) (original: 'a) (updated: 'a) =
         props |> Seq.choose (fun p ->
-            let originalVal = p.GetValue original
-            let updatedVal = p.GetValue updated
-            if originalVal <> updatedVal then
-                Some (p, updatedVal)
-            else
-                None
+            match p.GetValue updated, p.GetValue original with
+            | upd, orig when upd <> orig -> Some (p, upd)
+            | _ -> None
         )
 
     let permute (model: 'Model) changes =
@@ -68,7 +63,8 @@ module Framework =
             and set value = subject.OnNext value
 
     let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
-        let error = fun(exn, _) -> ExceptionDispatchInfo.Capture(exn).Throw()
+         // TODO: design API to allow user to control error handling
+        let error = fun (e, _) -> ExceptionDispatchInfo.Capture(e).Throw()
 
         let bindings = binder view initialModel
         let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
@@ -89,28 +85,30 @@ module Framework =
         let eventList : IObservable<'Event> list = events view
         let eventStream = eventList.Merge()
 
+        let updateModel originalModel newModel =
+            let changes = newModel |> Model.changes props originalModel
+            changes |> Model.updateView bindings
+            modelSubject.Value <- Model.permute modelSubject.Value changes
+
         let subscription =
             Observer.Create(fun event ->
                 match dispatcher event with
-                | Sync eventHandler ->
+                | Sync handler ->
                     try
-                        let changes = eventHandler modelSubject.Value |> Model.changes props modelSubject.Value
-                        changes |> Model.updateView bindings
-                        modelSubject.Value <- Model.permute modelSubject.Value changes
-                    with exn -> error(exn, event)
-                | Async eventHandler ->
+                        handler modelSubject.Value
+                        |> updateModel modelSubject.Value
+                    with e -> error (e, event)
+                | Async handler ->
                     Async.StartWithContinuations(
                         computation = async {
                             let originalModel = modelSubject.Value
-                            let! newModel = eventHandler originalModel
-                            return newModel |> Model.changes props originalModel
+                            let! newModel = handler originalModel
+                            newModel |> updateModel originalModel
                         },
-                        continuation = (fun changes ->
-                            changes |> Model.updateView bindings
-                            modelSubject.Value <- Model.permute modelSubject.Value changes
-                        ),
-                        exceptionContinuation = (fun exn -> error(exn, event)),
-                        cancellationContinuation = ignore))
+                        continuation = id,
+                        exceptionContinuation = (fun e -> error (e, event)),
+                        cancellationContinuation = ignore)
+            )
         #if DEBUG
             |> Observer.Checked
         #endif
