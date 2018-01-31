@@ -1,2 +1,3 @@
 Rx-Main
 FSharp.Quotations.Evaluator
+FSharp.Control.AsyncSeq

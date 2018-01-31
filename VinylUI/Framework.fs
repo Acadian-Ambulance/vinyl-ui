@@ -6,10 +6,12 @@ open System.Reactive.Subjects
 open System.Reactive.Linq
 open System.Runtime.ExceptionServices
 open System.Reflection
+open System.Threading
+open FSharp.Control
 
 type EventHandler<'Model> =
     | Sync of ('Model -> 'Model)
-    | Async of ('Model -> Async<'Model>)
+    | Async of ('Model -> AsyncSeq<'Model>)
 
 module Model =
     let equalIgnoreCase a b = String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
@@ -100,11 +102,20 @@ module Framework =
                     with e -> error (e, event)
                 | Async handler ->
                     Async.StartWithContinuations(
-                        computation = async {
-                            let originalModel = modelSubject.Value
-                            let! newModel = handler originalModel
-                            newModel |> updateModel originalModel
-                        },
+                        computation = (async {
+                            let gui = SynchronizationContext.Current
+                            do! Async.SwitchToThreadPool()
+
+                            let mutable originalModel = modelSubject.Value
+                            do! handler originalModel |> AsyncSeq.iterAsync (fun newModel -> async {
+                                do! Async.SwitchToContext(gui)
+                                newModel |> updateModel originalModel
+                                originalModel <- newModel
+                                do! Async.SwitchToThreadPool()
+                            })
+
+                            do! Async.SwitchToContext(gui)
+                        }),
                         continuation = id,
                         exceptionContinuation = (fun e -> error (e, event)),
                         cancellationContinuation = ignore)
