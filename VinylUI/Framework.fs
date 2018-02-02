@@ -64,10 +64,19 @@ module Framework =
             with get () = subject.Value
             and set value = subject.OnNext value
 
-    let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
-         // TODO: design API to allow user to control error handling
-        let error = fun (e, _) -> ExceptionDispatchInfo.Capture(e).Throw()
+    let mutable private errorHandler : (exn -> unit) option = None
 
+    /// Set an error handler for uncaught exceptions thrown by event handlers
+    let setErrorHandler (handler: Action<exn>) = errorHandler <- Some handler.Invoke
+
+    let private defaultAsyncErrorHandler e = ExceptionDispatchInfo.Capture(e).Throw()
+
+    let rec private unwrapException (e: Exception) =
+        match e with
+        | :? AggregateException as e -> e.InnerExceptions |> Seq.head |> unwrapException
+        | _ -> e
+
+    let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
         let bindings = binder view initialModel
         let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
         let computedProps = Model.computedProperties props
@@ -96,14 +105,18 @@ module Framework =
             Observer.Create(fun event ->
                 match dispatcher event with
                 | Sync handler ->
-                    try
+                    let handle () = 
                         handler modelSubject.Value
                         |> updateModel modelSubject.Value
-                    with e -> error (e, event)
+                    match errorHandler with
+                    | None -> handle ()
+                    | Some errorHandler ->
+                        try handle()
+                        with e -> errorHandler e
                 | Async handler ->
+                    let gui = SynchronizationContext.Current
                     Async.StartWithContinuations(
                         computation = (async {
-                            let gui = SynchronizationContext.Current
                             do! Async.SwitchToThreadPool()
 
                             let mutable originalModel = modelSubject.Value
@@ -117,7 +130,7 @@ module Framework =
                             do! Async.SwitchToContext(gui)
                         }),
                         continuation = id,
-                        exceptionContinuation = (fun e -> error (e, event)),
+                        exceptionContinuation = (unwrapException >> (errorHandler |> Option.defaultValue defaultAsyncErrorHandler)),
                         cancellationContinuation = ignore)
             )
         #if DEBUG
