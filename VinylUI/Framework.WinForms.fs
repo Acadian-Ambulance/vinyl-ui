@@ -239,3 +239,18 @@ type BindPartExtensions =
     [<Extension>]
     static member toDataSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
+
+[<Extension; AutoOpen>]
+type FormExtensions =
+    [<Extension>]
+    static member Show (form: Form, (modelSignal: ISignal<_>, subscription: IDisposable)) =
+        form.Closed.Add (fun _ -> subscription.Dispose())
+        form.Show()
+        modelSignal
+
+    [<Extension>]
+    static member ShowDialog (form: Form, (modelSignal: ISignal<_>, subscription: IDisposable)) =
+        try
+            form.ShowDialog() |> ignore
+            modelSignal.Value
+        finally subscription.Dispose()
