@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27428.2043
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "VinylUI", "VinylUI\VinylUI.fsproj", "{48999CC6-FCCC-46D7-9E2B-31470E1539E4}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "VinylUI.Tests", "VinylUI.Tests\VinylUI.Tests.fsproj", "{3D171A5B-F286-4F26-8D39-04C5205E5BBE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{48999CC6-FCCC-46D7-9E2B-31470E1539E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48999CC6-FCCC-46D7-9E2B-31470E1539E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48999CC6-FCCC-46D7-9E2B-31470E1539E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48999CC6-FCCC-46D7-9E2B-31470E1539E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D171A5B-F286-4F26-8D39-04C5205E5BBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D171A5B-F286-4F26-8D39-04C5205E5BBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D171A5B-F286-4F26-8D39-04C5205E5BBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D171A5B-F286-4F26-8D39-04C5205E5BBE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {93B9E6B6-976C-46CE-8D3F-F59D31289E88}
+	EndGlobalSection
+EndGlobal
