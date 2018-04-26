@@ -101,7 +101,7 @@ module Bind =
     /// Start the creation of a binding on a model property
     let model modelProperty = CommonBinding.modelPart modelProperty
 
-[<Extension; AutoOpen>]
+[<Extension>]
 type BindPartExtensions =
     // used via reflection
     static member private _objToOptionVal () =
@@ -240,7 +240,7 @@ type BindPartExtensions =
     static member toDataSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
 
-[<Extension; AutoOpen>]
+[<Extension>]
 type FormExtensions =
     [<Extension>]
     static member Show (form: Form, (modelSignal: ISignal<_>, subscription: IDisposable)) =
