@@ -4,7 +4,6 @@ framework: net451
 redirects: on
 
 nuget System.Reactive
-nuget Nito.AsyncEx ~> 4
 nuget FSharp.Control.AsyncSeq ~> 2.0.20
 nuget FSharp.Quotations.Evaluator
 nuget FsUnit 2.3.1
