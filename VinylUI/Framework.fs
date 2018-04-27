@@ -136,8 +136,11 @@ module Framework =
         #if DEBUG
             |> Observer.Checked
         #endif
-            |> Observer.preventReentrancy
-            |> Observer.notifyOnDispatcher
+            |> fun o -> Observer.Synchronize(o, preventReentrancy = true)
             |> eventStream.Subscribe
 
         (modelSubject :> ISignal<'Model>, subscription)
+
+[<RequireQualifiedAccess>]
+module Observable =
+    let mapTo value = Observable.map (fun _ -> value)

@@ -54,7 +54,6 @@
     <None Include="paket.references" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="DataBinding.fs" />
-    <Compile Include="FrameworkExtensions.fs" />
     <Compile Include="Framework.fs" />
     <Compile Include="Framework.WinForms.fs" />
   </ItemGroup>
