@@ -8,11 +8,11 @@ open System.Runtime.InteropServices
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [<assembly: AssemblyTitle("VinylUI")>]
-[<assembly: AssemblyDescription("F# UI framework designed for record model types.")>]
+[<assembly: AssemblyDescription("Framework for F# Desktop Applications")>]
 [<assembly: AssemblyConfiguration("")>]
-[<assembly: AssemblyCompany("Acadian Companies")>]
+[<assembly: AssemblyCompany("Acadian Ambulance Service")>]
 [<assembly: AssemblyProduct("VinylUI")>]
-[<assembly: AssemblyCopyright("Copyright © Acadian Companies 2017")>]
+[<assembly: AssemblyCopyright("Copyright © 2018 Acadian Ambulance Service")>]
 [<assembly: AssemblyTrademark("")>]
 [<assembly: AssemblyCulture("")>]
 
