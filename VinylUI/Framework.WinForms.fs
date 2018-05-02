@@ -63,6 +63,10 @@ module ListSource =
     open VinylUI.BindingPatterns
 
     let private setSource (control: ListControl) (source: 'a seq) valueMember displayMember =
+        let setSelection =
+            match control.SelectedValue with
+            | null -> (fun () -> control.SelectedIndex <- -1)
+            | s -> (fun () -> control.SelectedValue <- s)
         control.DataSource <- null
         (* we have to set the members both before and after setting the DataSource. We have to set it before in case
          * event handlers try to read a value as soon as the DataSource is set, and we have to set it after because 
@@ -72,7 +76,7 @@ module ListSource =
         control.DataSource <- Seq.toArray source
         control.DisplayMember <- displayMember
         control.ValueMember <- valueMember
-        control.SelectedIndex <- -1
+        setSelection ()
 
     /// Set the DataSource to a sequence of objects.
     /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
@@ -223,19 +227,19 @@ type BindPartExtensions =
           SetView = update
         }
 
-    /// Create a one-way binding from a model property to the DataSource of a ListControl.
-    /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
+    /// Create a one-way binding from a model property of type 'a seq to the DataSource of a ListControl.
+    /// `valueDisplayProperties` should be a quotation of a function that takes an 'a and returns a tuple of the
     /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
     [<Extension>]
     static member toDataSource (source: BindSourcePart<_>, control, valueDisplayProperties) =
         source.toFunc(ListSource.fromSeq control valueDisplayProperties)
 
-    /// Create a one-way binding from a model property to the DataSource of a ListControl.
+    /// Create a one-way binding from an model property of type IDictionary<,> to the DataSource of a ListControl.
     [<Extension>]
     static member toDataSource (source: BindSourcePart<IDictionary<'value, 'display>>, control) =
         source.toFunc(ListSource.fromDict control)
 
-    /// Create a one-way binding from a model property to the DataSource of a ListControl.
+    /// Create a one-way binding from a model property of type ('a * 'b) seq to the DataSource of a ListControl.
     [<Extension>]
     static member toDataSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
