@@ -223,19 +223,19 @@ type BindPartExtensions =
           SetView = update
         }
 
-    /// Create a one-way binding from a model property to the DataSource of a ListControl.
-    /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
+    /// Create a one-way binding from a model property of type 'a seq to the DataSource of a ListControl.
+    /// `valueDisplayProperties` should be a quotation of a function that takes an 'a and returns a tuple of the
     /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
     [<Extension>]
     static member toDataSource (source: BindSourcePart<_>, control, valueDisplayProperties) =
         source.toFunc(ListSource.fromSeq control valueDisplayProperties)
 
-    /// Create a one-way binding from a model property to the DataSource of a ListControl.
+    /// Create a one-way binding from an model property of type IDictionary<,> to the DataSource of a ListControl.
     [<Extension>]
     static member toDataSource (source: BindSourcePart<IDictionary<'value, 'display>>, control) =
         source.toFunc(ListSource.fromDict control)
 
-    /// Create a one-way binding from a model property to the DataSource of a ListControl.
+    /// Create a one-way binding from a model property of type ('a * 'b) seq to the DataSource of a ListControl.
     [<Extension>]
     static member toDataSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
