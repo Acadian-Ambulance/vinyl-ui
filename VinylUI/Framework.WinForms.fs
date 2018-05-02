@@ -63,6 +63,10 @@ module ListSource =
     open VinylUI.BindingPatterns
 
     let private setSource (control: ListControl) (source: 'a seq) valueMember displayMember =
+        let setSelection =
+            match control.SelectedValue with
+            | null -> (fun () -> control.SelectedIndex <- -1)
+            | s -> (fun () -> control.SelectedValue <- s)
         control.DataSource <- null
         (* we have to set the members both before and after setting the DataSource. We have to set it before in case
          * event handlers try to read a value as soon as the DataSource is set, and we have to set it after because 
@@ -72,7 +76,7 @@ module ListSource =
         control.DataSource <- Seq.toArray source
         control.DisplayMember <- displayMember
         control.ValueMember <- valueMember
-        control.SelectedIndex <- -1
+        setSelection ()
 
     /// Set the DataSource to a sequence of objects.
     /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
