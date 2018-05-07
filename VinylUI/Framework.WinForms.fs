@@ -3,6 +3,7 @@
 open System
 open System.Reflection
 open System.Windows.Forms
+open System.ComponentModel
 open System.Runtime.CompilerServices
 open System.Collections.Generic
 open Microsoft.FSharp.Quotations
@@ -57,6 +58,48 @@ module WinFormsBind =
         b.Control.DataBindings.Add controlBinding
         controlBinding
 
+    let bindControl bi = createBinding bi |> ignore
+
+    let bindInpc (bi: BindingInfo<INotifyPropertyChanged, 'c, 's>) =
+        let updateModel () =
+            let value = bi.ControlProperty.GetValue bi.Control :?> 'c
+            let converted =
+                match bi.Converter with
+                | Some c -> c.ToSource value
+                | None -> box value :?> 's
+            bi.SourceProperty.SetValue(bi.Source, converted)
+
+        let updateView () =
+            let value = bi.SourceProperty.GetValue bi.Source :?> 's
+            let converted =
+                match bi.Converter with
+                | Some c -> c.ToControl value
+                | None -> box value :?> 'c
+            bi.ControlProperty.SetValue(bi.Control, converted)
+
+        let updateModelOnViewChange () =
+            bi.Control.PropertyChanged.Add <| fun e ->
+                if e.PropertyName = bi.ControlProperty.Name then updateModel ()
+
+        let updateViewOnModelChange () =
+            match bi.Source with
+            | :? INotifyPropertyChanged as source ->
+                source.PropertyChanged.Add <| fun e ->
+                    if e.PropertyName = bi.SourceProperty.Name then updateView ()
+            | _ -> failwith "Source must implement INotifyPropertyChanged for to-view binding"
+
+        match bi.BindingMode with
+        | TwoWay _ ->
+            updateView()
+            updateModelOnViewChange ()
+            updateViewOnModelChange ()
+        | OneWayToModel _ ->
+            updateModel ()
+            updateModelOnViewChange ()
+        | OneWayToView _ ->
+            updateView()
+            updateViewOnModelChange ()
+
 
 /// Helpers for setting the DataSource of ListControls
 module ListSource =
@@ -101,6 +144,9 @@ module ListSource =
 module Bind =
     /// Start the creation of a binding on a control property
     let view controlProperty = CommonBinding.controlPart<Control, 'View> controlProperty
+
+    /// Start the creation of a binding on an INotifyPropertyChanged-enabled view component property
+    let viewInpc controlProperty = CommonBinding.controlPart<INotifyPropertyChanged, 'View> controlProperty
 
     /// Start the creation of a binding on a model property
     let model modelProperty = CommonBinding.modelPart modelProperty
@@ -157,6 +203,30 @@ type BindPartExtensions =
         view.toModel(modelProperty, converter.ToSource, converter.ToControl, ?sourceUpdateMode = sourceUpdateMode)
 
 
+    /// Create a two-way binding between control and model properties of the same type.
+    [<Extension>]
+    static member toModel (view: BindViewPart<INotifyPropertyChanged, 'a>, modelProperty: Expr<'a>) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay None)
+        |> CommonBinding.createProxy WinFormsBind.bindInpc
+
+    /// Create a two-way binding between control and model properties of different types given the conversions between them.
+    [<Extension>]
+    static member toModel (view: BindViewPart<INotifyPropertyChanged, _>, modelProperty, toModel, toView) =
+        { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay None) with
+            Converter = Some { ToControl = toView; ToSource = toModel }
+        } |> CommonBinding.createProxy WinFormsBind.bindInpc
+
+    /// Create a two-way binding, automatically converting between option<'a> and 'a.
+    [<Extension>]
+    static member toModel (view: BindViewPart<INotifyPropertyChanged, 'a>, modelProperty: Expr<'a option>) =
+        view.toModel(modelProperty, Option.ofObj, Option.toObj)
+
+    /// Create a two-way binding, automatically converting between option<'a> and Nullable<'a>.
+    [<Extension>]
+    static member toModel (view: BindViewPart<INotifyPropertyChanged, Nullable<'a>>, modelProperty: Expr<'a option>) =
+        view.toModel(modelProperty, Option.ofNullable, Option.toNullable)
+
+
     /// Create a one-way binding from a control property to a model property of the same type.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
@@ -187,6 +257,30 @@ type BindPartExtensions =
         view.toModelOneWay(modelProperty, converter.ToSource, ?sourceUpdateMode = sourceUpdateMode)
 
 
+    /// Create a one-way binding from a control property to a model property of the same type.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, 'a>, modelProperty: Expr<'a>) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel None)
+        |> CommonBinding.createProxy WinFormsBind.bindInpc
+
+    /// Create a one-way binding from a control property to a model property of a different type given the conversion.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, _>, modelProperty, toModel) =
+        { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel None) with
+            Converter = Some { ToControl = (fun _ -> failwith "one way binding"); ToSource = toModel }
+        } |> CommonBinding.createProxy WinFormsBind.bindInpc
+
+    /// Create a one-way binding from a nullable reference control property to an option model property, automatically handling the conversion.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, 'a>, modelProperty: Expr<'a option>) =
+        view.toModelOneWay(modelProperty, Option.ofObj)
+
+    /// Create a one-way binding from a nullable control property to an option model property, automatically handling the conversion.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, Nullable<'a>>, modelProperty: Expr<'a option>) =
+        view.toModelOneWay(modelProperty, Option.ofNullable)
+
+
     /// Create a one-way binding from a model property to a control property of the same type.
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<'a>) =
@@ -215,6 +309,30 @@ type BindPartExtensions =
     static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<obj>) =
         let converter = BindPartExtensions.getObjConverter<'a>()
         source.toViewOneWay(viewProperty, converter.ToControl)
+
+
+    /// Create a one-way binding from a model property to a control property of the same type.
+    [<Extension>]
+    static member toViewInpcOneWay (source: BindSourcePart<'a>, viewProperty: Expr<'a>) =
+        CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView
+        |> CommonBinding.createProxy WinFormsBind.bindInpc
+
+    /// Create a one-way binding from a model property to a control property of a different type given the conversion.
+    [<Extension>]
+    static member toViewInpcOneWay (source: BindSourcePart<_>, viewProperty, toView) =
+        { CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView with
+            Converter = Some { ToControl = toView; ToSource = (fun _ -> failwith "one way binding") }
+        } |> CommonBinding.createProxy WinFormsBind.bindInpc
+
+    /// Create a one-way binding from a option model property to an nullable reference control property, automatically handling the conversion.
+    [<Extension>]
+    static member toViewInpcOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<'a>) =
+        source.toViewInpcOneWay(viewProperty, Option.toObj)
+
+    /// Create a one-way binding from a option model property to an nullable control property, automatically handling the conversion.
+    [<Extension>]
+    static member toViewInpcOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<Nullable<'a>>) =
+        source.toViewInpcOneWay(viewProperty, Option.toNullable)
 
 
     /// Create a one-way binding from a model property to a function call that updates the view.

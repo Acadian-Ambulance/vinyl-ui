@@ -99,7 +99,7 @@ module CommonBinding =
         match controlProperty with
         | PropertyExpression (ctl, ctlProp) when typedefof<'Control>.IsAssignableFrom(ctl.GetType()) ->
             { Control = ctl :?> 'Control; ControlProperty = ctlProp } : BindViewPart<'Control, 'View>
-        | _ -> failwith "Expected a property access expression on a control"
+        | _ -> failwithf "Expected a property access expression of an object of type %s" typedefof<'Control>.Name
 
     let modelPart (modelProperty: Expr<'Model>) =
         match modelProperty with
