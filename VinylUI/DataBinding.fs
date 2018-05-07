@@ -89,7 +89,7 @@ module CommonBinding =
         let value = bindInfo.SourceProperty.GetValue bindInfo.Source
         let proxy = BindingProxy value
         let proxyBindInfo = { bindInfo with Source = proxy; SourceProperty = BindingProxy.Property }
-        createBinding proxyBindInfo |> ignore
+        createBinding proxyBindInfo
         { ModelProperty = bindInfo.SourceProperty
           ViewChanged = proxy.ViewChanged
           SetView = proxy.SetView

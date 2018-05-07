@@ -10,12 +10,12 @@ open VinylUI
 
 type WinBinding = System.Windows.Forms.Binding
 
-module DataBind =
-    let private convertUpdateMode = function
+module WinFormsBind =
+    let convertUpdateMode = function
         | OnValidation -> DataSourceUpdateMode.OnValidation
         | OnChange -> DataSourceUpdateMode.OnPropertyChanged
 
-    let private getUpdateModeFor (controlProperty: PropertyInfo) updateMode =
+    let getUpdateModeFor (controlProperty: PropertyInfo) updateMode =
         match updateMode, controlProperty.Name with
         | OneWayToView, _ -> DataSourceUpdateMode.Never
         | OneWayToModel (Some mode), _
@@ -23,7 +23,7 @@ module DataBind =
         | _, "Checked" -> DataSourceUpdateMode.OnPropertyChanged
         | _ -> DataSourceUpdateMode.OnValidation
 
-    let private addConverter (binding: WinBinding) (converter: BindingConverter<'c, 's>) =
+    let addConverter (binding: WinBinding) (converter: BindingConverter<'c, 's>) =
         let sanitize (ctrlValue: obj) =
             match ctrlValue with
             | :? DBNull -> Unchecked.defaultof<'c>
@@ -131,14 +131,14 @@ type BindPartExtensions =
     [<Extension>]
     static member toModel (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
         CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode)
-        |> CommonBinding.createProxy DataBind.createBinding
+        |> CommonBinding.createProxy WinFormsBind.bindControl
 
     /// Create a two-way binding between control and model properties of different types given the conversions between them.
     [<Extension>]
     static member toModel (view: BindViewPart<Control, _>, modelProperty, toModel, toView, ?sourceUpdateMode) =
         { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode) with
             Converter = Some { ToControl = toView; ToSource = toModel }
-        } |> CommonBinding.createProxy DataBind.createBinding
+        } |> CommonBinding.createProxy WinFormsBind.bindControl
 
     /// Create a two-way binding, automatically converting between option<'a> and 'a.
     [<Extension>]
@@ -161,14 +161,14 @@ type BindPartExtensions =
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
         CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode)
-        |> CommonBinding.createProxy DataBind.createBinding
+        |> CommonBinding.createProxy WinFormsBind.bindControl
 
     /// Create a one-way binding from a control property to a model property of a different type given the conversion.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, _>, modelProperty, toModel, ?sourceUpdateMode) =
         { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode) with
             Converter = Some { ToControl = (fun _ -> failwith "one way binding"); ToSource = toModel }
-        } |> CommonBinding.createProxy DataBind.createBinding
+        } |> CommonBinding.createProxy WinFormsBind.bindControl
 
     /// Create a one-way binding from a nullable reference control property to an option model property, automatically handling the conversion.
     [<Extension>]
@@ -191,14 +191,14 @@ type BindPartExtensions =
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<'a>) =
         CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView
-        |> CommonBinding.createProxy DataBind.createBinding
+        |> CommonBinding.createProxy WinFormsBind.bindControl
 
     /// Create a one-way binding from a model property to a control property of a different type given the conversion.
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<_>, viewProperty, toView) =
         { CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView with
             Converter = Some { ToControl = toView; ToSource = (fun _ -> failwith "one way binding") }
-        } |> CommonBinding.createProxy DataBind.createBinding
+        } |> CommonBinding.createProxy WinFormsBind.bindControl
 
     /// Create a one-way binding from a option model property to an nullable reference control property, automatically handling the conversion.
     [<Extension>]
