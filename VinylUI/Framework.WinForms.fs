@@ -109,13 +109,13 @@ module Bind =
 type BindPartExtensions =
     // used via reflection
     static member private _objToOptionVal () =
-        { ToSource = (fun x -> x |> unbox |> Option.ofNullable)
+        { ToSource = unbox >> Option.ofNullable
           ToControl = Option.toNullable >> box }
     static member private _objToOptionRef () =
-        { ToSource = (fun x -> if x = null then None else x |> unbox |> Option.ofObj)
+        { ToSource = Option.ofObj >> Option.map unbox
           ToControl = Option.toObj >> box }
 
-    static member private getObjConverter<'a> () =
+    static member getObjConverter<'a> () =
         if typedefof<'a> = typedefof<option<_>> then
             let wrappedT = typeof<'a>.GetGenericArguments().[0]
             let kind = if wrappedT.IsValueType then "Val" else "Ref"

@@ -320,3 +320,11 @@ let ``Bind model to data source`` () =
     let newList = [ { Id = 99; Name = "Dependency Injection" } ]
     binding.SetView (box newList)
     getList () |> shouldEqual newList
+
+// helper tests
+
+[<Test>]
+let ``getObjConverter for record option type handles nulls`` () =
+    let converter = BindPartExtensions.getObjConverter<Book option> ()
+    converter.ToSource null |> shouldEqual None
+    converter.ToControl None |> shouldEqual null
