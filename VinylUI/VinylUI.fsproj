@@ -56,7 +56,7 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="DataBinding.fs" />
     <Compile Include="Framework.fs" />
-    <Compile Include="Framework.WinForms.fs" />
+    <Compile Include="WinForms.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
