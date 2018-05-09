@@ -89,7 +89,7 @@ module CommonBinding =
         let value = bindInfo.SourceProperty.GetValue bindInfo.Source
         let proxy = BindingProxy value
         let proxyBindInfo = { bindInfo with Source = proxy; SourceProperty = BindingProxy.Property }
-        createBinding proxyBindInfo |> ignore
+        createBinding proxyBindInfo
         { ModelProperty = bindInfo.SourceProperty
           ViewChanged = proxy.ViewChanged
           SetView = proxy.SetView
@@ -99,7 +99,7 @@ module CommonBinding =
         match controlProperty with
         | PropertyExpression (ctl, ctlProp) when typedefof<'Control>.IsAssignableFrom(ctl.GetType()) ->
             { Control = ctl :?> 'Control; ControlProperty = ctlProp } : BindViewPart<'Control, 'View>
-        | _ -> failwith "Expected a property access expression on a control"
+        | _ -> failwithf "Expected a property access expression of an object of type %s" typedefof<'Control>.Name
 
     let modelPart (modelProperty: Expr<'Model>) =
         match modelProperty with

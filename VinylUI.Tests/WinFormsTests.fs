@@ -2,6 +2,7 @@
 
 open System
 open System.Windows.Forms
+open System.ComponentModel
 open System.Reflection
 open Microsoft.FSharp.Quotations
 open NUnit.Framework
@@ -55,6 +56,21 @@ type NumberBox() =
             this.Text <- string v
             changedEvent.Trigger(this, EventArgs.Empty)
 
+type InpcControl<'a when 'a: equality>(initVal: 'a) =
+    let mutable value = initVal
+    let propChanged = Event<_,_>()
+
+    member this.Value
+        with get () = value
+        and set v =
+            if value <> v then
+                value <- v
+                propChanged.Trigger(this, PropertyChangedEventArgs("Value"))
+
+    interface INotifyPropertyChanged with
+        [<CLIEvent>]
+        member this.PropertyChanged = propChanged.Publish
+
 type FakeForm() =
     let ctx = BindingContext()
     let init (ctl: 'c when 'c :> Control) =
@@ -65,6 +81,8 @@ type FakeForm() =
     member val TextBox = new TextBox() |> init
     member val ListBox = new ListBox() |> init
     member val NumberBox = new NumberBox() |> init
+    member val CustomTextControl = InpcControl("")
+    member val CustomIntControl = InpcControl(Nullable<int>())
 
     interface IDisposable with
         member this.Dispose() =
@@ -106,6 +124,13 @@ let testViewToModel sourceUpdate (viewExpr: Expr<'v>) startVal (newVal: 'v) expe
     validate cp.Control
     fromView |> shouldEqual expectedVal
 
+let testViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal binding =
+    let cp = CommonBinding.controlPart viewExpr
+    let mutable fromView = startVal
+    use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
+    controlSet newVal cp
+    fromView |> shouldEqual expectedVal
+
 let testNonViewToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
     let cp = CommonBinding.controlPart viewExpr
     let mutable fromView = startVal
@@ -113,6 +138,13 @@ let testNonViewToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
     controlSet newVal cp
     fromView |> shouldEqual startVal
     validate cp.Control
+    fromView |> shouldEqual startVal
+
+let testNonViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
+    let cp = CommonBinding.controlPart viewExpr
+    let mutable fromView = startVal
+    use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
+    controlSet newVal cp
     fromView |> shouldEqual startVal
 
 let sourceUpdateModes = [ OnValidation; OnChange ]
@@ -130,6 +162,14 @@ let ``Bind matching properties two-way`` sourceUpdate =
     binding |> testModelToView viewExpr model.Name "Bob" "Bob"
     binding |> testViewToModel sourceUpdate viewExpr model.Name "Cat" "Cat"
 
+[<Test>]
+let ``Bind matching properties two-way for custom control`` () =
+    use form = new FakeForm()
+    let viewExpr = <@ form.CustomTextControl.Value @>
+    let binding = Bind.viewInpc(viewExpr).toModel(<@ model.Name @>)
+    binding |> testModelToView viewExpr model.Name "Bob" "Bob"
+    binding |> testViewInpcToModel viewExpr model.Name "Cat" "Cat"
+
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind nullable to option two-way`` sourceUpdate =
     use form = new FakeForm()
@@ -137,6 +177,14 @@ let ``Bind nullable to option two-way`` sourceUpdate =
     let binding = Bind.view(viewExpr).toModel(<@ model.Age @>, sourceUpdate)
     binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
     binding |> testViewToModel sourceUpdate viewExpr model.Age (Nullable 32) (Some 32)
+
+[<Test>]
+let ``Bind nullable to option two-way for custom control`` () =
+    use form = new FakeForm()
+    let viewExpr = <@ form.CustomIntControl.Value @>
+    let binding = Bind.viewInpc(viewExpr).toModel(<@ model.Age @>)
+    binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
+    binding |> testViewInpcToModel viewExpr model.Age (Nullable 32) (Some 32)
 
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind obj to val type two-way`` sourceUpdate =
@@ -186,6 +234,15 @@ let ``Bind matching properties one way to model`` sourceUpdate =
     binding |> testNonModelToView viewExpr "" "Cat"
     binding |> testViewToModel sourceUpdate viewExpr model.Name "Bob" "Bob"
 
+[<Test>]
+let ``Bind matching properties one way to model for custom control`` () =
+    use form = new FakeForm()
+    let viewExpr = <@ form.CustomTextControl.Value @>
+    let binding = Bind.viewInpc(viewExpr).toModelOneWay(<@ model.Name @>)
+    binding.ModelProperty |> shouldEqual Model.NameProperty
+    binding |> testNonModelToView viewExpr "" "Cat"
+    binding |> testViewInpcToModel viewExpr model.Name "Bob" "Bob"
+
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind nullable to option one way to model`` sourceUpdate =
     use form = new FakeForm()
@@ -193,6 +250,14 @@ let ``Bind nullable to option one way to model`` sourceUpdate =
     let binding = Bind.view(viewExpr).toModelOneWay(<@ model.Age @>, sourceUpdate)
     binding |> testNonModelToView viewExpr (Nullable()) (Some 31)
     binding |> testViewToModel sourceUpdate viewExpr model.Age (Nullable 32) (Some 32)
+
+[<Test>]
+let ``Bind nullable to option one way to model for custom control`` () =
+    use form = new FakeForm()
+    let viewExpr = <@ form.CustomIntControl.Value @>
+    let binding = Bind.viewInpc(viewExpr).toModelOneWay(<@ model.Age @>)
+    binding |> testNonModelToView viewExpr (Nullable()) (Some 31)
+    binding |> testViewInpcToModel viewExpr model.Age (Nullable 32) (Some 32)
 
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind obj to val type one way to model`` sourceUpdate =
@@ -243,12 +308,29 @@ let ``Bind matching properties one way to view`` () =
     binding |> testNonViewToModel viewExpr model.Name "Cat"
 
 [<Test>]
+let ``Bind matching properties one way to view for custom control`` () =
+    use form = new FakeForm()
+    let viewExpr = <@ form.CustomTextControl.Value @>
+    let binding = Bind.model(<@ model.Name @>).toViewInpcOneWay(viewExpr)
+    binding.ModelProperty |> shouldEqual Model.NameProperty
+    binding |> testModelToView viewExpr model.Name "Bob" "Bob"
+    binding |> testNonViewInpcToModel viewExpr model.Name "Cat"
+
+[<Test>]
 let ``Bind nullable to option one way to view`` () =
     use form = new FakeForm()
     let viewExpr = <@ form.NumberBox.Value @>
     let binding = Bind.model(<@ model.Age @>).toViewOneWay(viewExpr)
     binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
     binding |> testNonViewToModel viewExpr model.Age (Nullable 32)
+
+[<Test>]
+let ``Bind nullable to option one way to view for custom control`` () =
+    use form = new FakeForm()
+    let viewExpr = <@ form.CustomIntControl.Value @>
+    let binding = Bind.model(<@ model.Age @>).toViewInpcOneWay(viewExpr)
+    binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
+    binding |> testNonViewInpcToModel viewExpr model.Age (Nullable 32)
 
 [<Test>]
 let ``Bind obj to val type one way to view`` () =
@@ -320,3 +402,11 @@ let ``Bind model to data source`` () =
     let newList = [ { Id = 99; Name = "Dependency Injection" } ]
     binding.SetView (box newList)
     getList () |> shouldEqual newList
+
+// helper tests
+
+[<Test>]
+let ``getObjConverter for record option type handles nulls`` () =
+    let converter = BindPartExtensions.getObjConverter<Book option> ()
+    converter.ToSource null |> shouldEqual None
+    converter.ToControl None |> shouldEqual null
