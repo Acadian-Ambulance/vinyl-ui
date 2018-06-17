@@ -75,8 +75,11 @@ let updateControl (cp: BindViewPart<Control, _>) =
     let notify = typedefof<Control>.GetMethod("NotifyValidating", BindingFlags.Instance ||| BindingFlags.NonPublic)
     notify.Invoke(cp.Control, null) |> ignore
 
-let testViewToModel sourceUpdate = testViewToModel updateControl sourceUpdate
-let testNonViewToModel viewExpr = testNonViewToModel updateControl viewExpr
+let testViewToModel sourceUpdate viewExpr startVal newVal expectedVal =
+    testViewToModel updateControl sourceUpdate viewExpr startVal newVal expectedVal
+
+let testNonViewToModel viewExpr startVal newVal =
+    testNonViewToModel updateControl viewExpr startVal newVal
 
 let sourceUpdateModes = [ OnValidation; OnChange ]
 
