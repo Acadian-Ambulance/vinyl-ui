@@ -281,22 +281,6 @@ let ``Bind nullable to option one way to model for custom control`` () =
     binding |> testViewInpcToModel viewExpr model.Age (Nullable 32) (Some 32)
 
 [<TestCaseSource("sourceUpdateModes")>]
-let ``Bind string to string option one way to model`` sourceUpdate =
-    use form = new FakeForm()
-    let viewExpr = <@ form.TextBox.Text @>
-    let binding = Bind.view(viewExpr).toModelOneWay(<@ model.NickName @>, sourceUpdate)
-    binding |> testNonModelToView viewExpr ("") (None)
-    binding |> testViewToModel sourceUpdate viewExpr model.NickName ("D") (Some "D")
-
-[<Test>]
-let ``Bind string to string option one way to model for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomTextControl.Value @>
-    let binding = Bind.viewInpc(viewExpr).toModelOneWay(<@ model.NickName @>)
-    binding |> testNonModelToView viewExpr ("") (None)
-    binding |> testViewInpcToModel viewExpr model.NickName ("D") (Some "D")
-
-[<TestCaseSource("sourceUpdateModes")>]
 let ``Bind obj to val type one way to model`` sourceUpdate =
     use form = new FakeForm()
     form.ListBox.DataSource <- [ 0 .. 100 ] |> List.toArray
@@ -368,22 +352,6 @@ let ``Bind nullable to option one way to view for custom control`` () =
     let binding = Bind.model(<@ model.Age @>).toViewInpcOneWay(viewExpr)
     binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
     binding |> testNonViewInpcToModel viewExpr model.Age (Nullable 32)
-
-[<Test>]
-let ``Bind string to sting option one way to view`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.TextBox.Text @>
-    let binding = Bind.model(<@ model.NickName @>).toViewOneWay(viewExpr)
-    binding |> testModelToView viewExpr (Option.defaultValue "" model.NickName) (Some "D") ("D")
-    binding |> testNonViewToModel viewExpr model.NickName ("D")
-
-[<Test>]
-let ``Bind string to string option one way to view for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomTextControl.Value @>
-    let binding = Bind.model(<@ model.NickName @>).toViewInpcOneWay(viewExpr)
-    binding |> testModelToView viewExpr (Option.defaultValue "" model.NickName) (Some "D") ("D")
-    binding |> testNonViewInpcToModel viewExpr model.Age ("D")
 
 [<Test>]
 let ``Bind obj to val type one way to view`` () =
