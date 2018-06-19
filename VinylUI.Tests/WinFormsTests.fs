@@ -195,17 +195,16 @@ let ``Bind string to string option two-way`` sourceUpdate =
     use form = new FakeForm()
     let viewExpr = <@ form.TextBox.Text @>
     let binding = Bind.view(viewExpr).toModel(<@ model.NickName@>, sourceUpdate)
-    binding |> testModelToView viewExpr (Option.defaultValue "" model.NickName) (Some "D") ("D")
-    binding |> testViewToModel sourceUpdate viewExpr model.NickName ("D") (Some "D")
-
+    binding |> testModelToView viewExpr "D" (None) ("")
+    binding |> testViewToModel sourceUpdate viewExpr model.NickName (null) (None)
 
 [<Test>]
 let ``Bind string to string option two-way for custom control`` () =
     use form = new FakeForm()
     let viewExpr = <@ form.CustomTextControl.Value @>
     let binding = Bind.viewInpc(viewExpr).toModel(<@ model.NickName @>)
-    binding |> testModelToView viewExpr (Option.defaultValue "" model.NickName) (Some "D") ("D")
-    binding |> testViewInpcToModel viewExpr model.NickName ("D") (Some "D")
+    binding |> testModelToView viewExpr "D" (Some "Chip Jiggins") ("Chip Jiggins")
+    binding |> testViewInpcToModel viewExpr model.NickName (" ") (None)
 
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind obj to val type two-way`` sourceUpdate =
