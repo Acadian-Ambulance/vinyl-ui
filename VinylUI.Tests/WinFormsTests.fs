@@ -116,6 +116,7 @@ let testNonModelToView (viewExpr: Expr<'v>) (startVal: 'v) newVal binding =
 let testViewToModel sourceUpdate (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal binding =
     let cp = CommonBinding.controlPart viewExpr
     let mutable fromView = startVal
+    binding.SetView (box startVal)
     use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
     controlSet newVal cp
     match sourceUpdate with
@@ -127,6 +128,7 @@ let testViewToModel sourceUpdate (viewExpr: Expr<'v>) startVal (newVal: 'v) expe
 let testViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal binding =
     let cp = CommonBinding.controlPart viewExpr
     let mutable fromView = startVal
+    binding.SetView (box startVal)
     use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
     controlSet newVal cp
     fromView |> shouldEqual expectedVal
@@ -134,6 +136,7 @@ let testViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal b
 let testNonViewToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
     let cp = CommonBinding.controlPart viewExpr
     let mutable fromView = startVal
+    binding.SetView (box startVal)
     use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
     controlSet newVal cp
     fromView |> shouldEqual startVal
@@ -142,6 +145,7 @@ let testNonViewToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
 
 let testNonViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
     let cp = CommonBinding.controlPart viewExpr
+    binding.SetView (box startVal)
     let mutable fromView = startVal
     use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
     controlSet newVal cp
