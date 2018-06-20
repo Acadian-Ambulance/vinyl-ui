@@ -116,6 +116,7 @@ let testNonModelToView (viewExpr: Expr<'v>) (startVal: 'v) newVal binding =
 let testViewToModel sourceUpdate (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal binding =
     let cp = CommonBinding.controlPart viewExpr
     let mutable fromView = startVal
+    binding.SetView (box startVal)
     use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
     controlSet newVal cp
     match sourceUpdate with
@@ -127,6 +128,7 @@ let testViewToModel sourceUpdate (viewExpr: Expr<'v>) startVal (newVal: 'v) expe
 let testViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal binding =
     let cp = CommonBinding.controlPart viewExpr
     let mutable fromView = startVal
+    binding.SetView (box startVal)
     use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
     controlSet newVal cp
     fromView |> shouldEqual expectedVal
@@ -134,6 +136,7 @@ let testViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal b
 let testNonViewToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
     let cp = CommonBinding.controlPart viewExpr
     let mutable fromView = startVal
+    binding.SetView (box startVal)
     use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
     controlSet newVal cp
     fromView |> shouldEqual startVal
@@ -142,6 +145,7 @@ let testNonViewToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
 
 let testNonViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
     let cp = CommonBinding.controlPart viewExpr
+    binding.SetView (box startVal)
     let mutable fromView = startVal
     use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
     controlSet newVal cp
@@ -185,6 +189,22 @@ let ``Bind nullable to option two-way for custom control`` () =
     let binding = Bind.viewInpc(viewExpr).toModel(<@ model.Age @>)
     binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
     binding |> testViewInpcToModel viewExpr model.Age (Nullable 32) (Some 32)
+
+[<TestCaseSource("sourceUpdateModes")>]
+let ``Bind string to string option two-way`` sourceUpdate =
+    use form = new FakeForm()
+    let viewExpr = <@ form.TextBox.Text @>
+    let binding = Bind.view(viewExpr).toModel(<@ model.NickName@>, sourceUpdate)
+    binding |> testModelToView viewExpr "D" (None) ("")
+    binding |> testViewToModel sourceUpdate viewExpr model.NickName (null) (None)
+
+[<Test>]
+let ``Bind string to string option two-way for custom control`` () =
+    use form = new FakeForm()
+    let viewExpr = <@ form.CustomTextControl.Value @>
+    let binding = Bind.viewInpc(viewExpr).toModel(<@ model.NickName @>)
+    binding |> testModelToView viewExpr "D" (Some "Chip Jiggins") ("Chip Jiggins")
+    binding |> testViewInpcToModel viewExpr model.NickName (" ") (None)
 
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind obj to val type two-way`` sourceUpdate =
