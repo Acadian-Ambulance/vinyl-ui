@@ -54,6 +54,37 @@ module WinFormsBind =
             | :? ComboBox as c -> c.SelectedIndexChanged.Add write
             | :? ListBox as c -> c.SelectedIndexChanged.Add write
             | _ -> ()
+        
+        // workaround for SelectedIndex needing to be set to -1 twice issue
+        if b.ControlProperty.Name = "SelectedIndex" then
+            let fixIndex (c: ListControl) =
+                let sourceIndex = b.SourceProperty.GetValue(b.Source) :?> int
+                if sourceIndex = -1 && c.SelectedIndex <> -1 then
+                    c.SelectedIndex <- -1
+            match b.Control with
+            | :? ComboBox as c -> controlBinding.BindingComplete.Add (fun _ -> fixIndex c)
+            | :? ListBox as c -> controlBinding.BindingComplete.Add (fun _ -> fixIndex c)
+            | _ -> ()
+        
+        if b.ControlProperty.Name = "SelectedItem" then
+            match b.Control with
+            | :? ComboBox as c -> controlBinding.BindingComplete.Add <| fun _ -> 
+                let sourceItem = b.SourceProperty.GetValue(b.Source)
+                if sourceItem = null && c.SelectedItem <> null then
+                    c.SelectedIndex <- -1
+                    if c.SelectedIndex <> -1 then
+                        c.SelectedIndex <- -1
+            | _ -> ()
+
+        if b.ControlProperty.Name = "SelectedValue" then
+            let fixValue (c: ListControl) =
+                let sourceItem = b.SourceProperty.GetValue(b.Source)
+                if sourceItem = null && c.SelectedValue <> null then
+                    c.SelectedIndex <- -1
+            match b.Control with
+            | :? ComboBox as c -> controlBinding.BindingComplete.Add (fun _ -> fixValue c)
+            | :? ListBox as c -> controlBinding.BindingComplete.Add (fun _ -> fixValue c)
+            | _ -> ()
 
         b.Control.DataBindings.Add controlBinding
         controlBinding

@@ -17,24 +17,42 @@ type Book = {
     Name: string
 }
 
+[<AllowNullLiteralAttribute>]
+type BookObj(id: int, name: string) =
+    member this.Id = id
+    member this.Name = name
+
 type Model = {
     Id: int
     Name: string
     NickName: string option
     Age: int option
     Books: Book list
+    BookObjs: BookObj list
+    BookIndex: int
+    BookSelection: BookObj option
+    BookValue: int option
 }
 with
     static member IdProperty = typedefof<Model>.GetProperty("Id")
     static member NameProperty = typedefof<Model>.GetProperty("Name")
     static member BooksProperty = typedefof<Model>.GetProperty("Books")
 
+let books = [ 
+    { Id = 27; Name = "Programming For the Brave and True" }
+    { Id = 53; Name = "Something Like That" } 
+]
+
+let bookObjs = books |> List.map (fun b -> BookObj(b.Id, b.Name))
 let model = { Id = 2
               Name = "Dan"
               NickName = Some "D"
               Age = Some 30
-              Books = [ { Id = 27; Name = "Programming For the Brave and True" }
-                        { Id = 53; Name = "Something Like That" } ]
+              Books = books
+              BookObjs = bookObjs
+              BookIndex = -1
+              BookSelection = None
+              BookValue = None
             }
 
 // view stuff
@@ -81,6 +99,7 @@ type FakeForm() =
     member val TextBox = new TextBox() |> init
     member val ListBox = new ListBox() |> init
     member val NumberBox = new NumberBox() |> init
+    member val ComboBox = new ComboBox() |> init
     member val CustomTextControl = InpcControl("")
     member val CustomIntControl = InpcControl(Nullable<int>())
 
@@ -410,3 +429,51 @@ let ``getObjConverter for record option type handles nulls`` () =
     let converter = BindPartExtensions.getObjConverter<Book option> ()
     converter.ToSource null |> shouldEqual None
     converter.ToControl None |> shouldEqual null
+
+type ListControls = ListType | ComboType
+
+let listControls = [ ListType; ComboType ]
+
+[<TestCaseSource("listControls")>]
+let ``Model to view correctly updates SelectedIndex to -1`` controlType =
+    use form = new FakeForm()
+    let ctrl =
+        match controlType with
+        | ComboType -> form.ComboBox :> ListControl
+        | ListType -> form.ListBox :> ListControl
+
+    Bind.model(<@ model.Books @>).toDataSource(ctrl, <@ fun b -> b.Id, b.Name @>) |> ignore
+
+    let viewExpr = <@ ctrl.SelectedIndex @>
+    let binding = Bind.view(viewExpr).toModel(<@ model.BookIndex @>)
+    binding |> testModelToView viewExpr model.BookIndex 1 1
+    binding |> testModelToView viewExpr 1 -1 -1
+
+[<Test>]
+let ``Model to view correctly updates SelectedItem to null`` () =
+    use form = new FakeForm()
+    let ctrl = form.ComboBox
+
+    Bind.model(<@ model.BookObjs @>).toDataSource(ctrl, <@ fun b -> b.Id, b.Name @>) |> ignore
+
+    let viewExpr = <@ ctrl.SelectedItem @>
+    let binding = Bind.view(viewExpr).toModel(<@ model.BookSelection @>)
+
+    binding |> testModelToView viewExpr (model.BookSelection |> Option.toObj |> box) (Some bookObjs.[1]) (bookObjs.[1] |> box)
+    binding |> testModelToView viewExpr (bookObjs.[1] |> box) None (null |> box)
+    
+[<TestCaseSource("listControls")>]
+let ``Model to view correctly updates SelectedValue to null`` controlType =
+    use form = new FakeForm()
+    let ctrl =
+        match controlType with
+        | ComboType -> form.ComboBox :> ListControl
+        | ListType -> form.ListBox :> ListControl
+
+    Bind.model(<@ model.Books @>).toDataSource(ctrl, <@ fun b -> b.Id, b.Name @>) |> ignore
+
+    let viewExpr = <@ ctrl.SelectedValue @>
+    let binding = Bind.view(viewExpr).toModel(<@ model.BookValue @>)
+
+    binding |> testModelToView viewExpr (model.BookValue |> Option.toNullable |> box) (Some bookObjs.[1].Id) (bookObjs.[1].Id |> box)
+    binding |> testModelToView viewExpr (bookObjs.[1].Id |> box) None (null |> box)
