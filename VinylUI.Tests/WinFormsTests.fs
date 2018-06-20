@@ -47,6 +47,10 @@ type NumberBox() =
             this.Text <- string v
             changedEvent.Trigger(this, EventArgs.Empty)
 
+    override this.ToString() =
+        let v = this.Value |> Option.ofNullable |> Option.map string |> Option.defaultValue "<null>"
+        sprintf "NumberBox Value=%s Text=%s" v this.Text
+
 type FakeForm() =
     let ctx = BindingContext()
     let init (ctl: 'c when 'c :> Control) =
