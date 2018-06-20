@@ -227,6 +227,11 @@ type BindPartExtensions =
     static member toModel (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
         view.toModel(modelProperty, Option.ofNullable, Option.toNullable, ?sourceUpdateMode = sourceUpdateMode)
 
+    /// Create a two-way binding, automatically converting between string and string option, where null and whitespace from the view becomes None on the model
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, (fun s -> if s |> System.String.IsNullOrWhiteSpace then None else Some s), Option.defaultValue "", ?sourceUpdateMode = sourceUpdateMode)
+
     /// Create a two-way binding between an obj control property and a model property, automatically boxing and unboxing.
     [<Extension>]
     static member toModel (view: BindViewPart<Control, obj>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
@@ -257,6 +262,11 @@ type BindPartExtensions =
     static member toModel (view: BindViewPart<INotifyPropertyChanged, Nullable<'a>>, modelProperty: Expr<'a option>) =
         view.toModel(modelProperty, Option.ofNullable, Option.toNullable)
 
+    /// Create a two-way binding, automatically converting between string and string option, where null and whitespace from the view becomes None on the model
+    [<Extension>]
+    static member toModel (view: BindViewPart<INotifyPropertyChanged, string>, modelProperty: Expr<string option>) =
+        view.toModel(modelProperty, (fun s -> if s |> System.String.IsNullOrWhiteSpace then None else Some s), Option.defaultValue "")
+
 
     /// Create a one-way binding from a control property to a model property of the same type.
     [<Extension>]
@@ -280,6 +290,12 @@ type BindPartExtensions =
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
         view.toModelOneWay(modelProperty, Option.ofNullable, ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a one-way binding, from a string control property to a string option model property, 
+    /// automatically handling the conversion where null and whitespace from the view becomes None on the model.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
+        view.toModelOneWay(modelProperty, (fun s -> if s |> System.String.IsNullOrWhiteSpace then None else Some s), ?sourceUpdateMode = sourceUpdateMode)
 
     /// Create a one-way binding from an obj control property to a model property, automatically handling the unboxing.
     [<Extension>]
@@ -335,6 +351,12 @@ type BindPartExtensions =
     static member toViewOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<Nullable<'a>>) =
         source.toViewOneWay(viewProperty, Option.toNullable)
 
+    /// Create a one-way binding, from a string option model property to a string control property, 
+    /// automatically handling the conversion where None on the model becomes empty string on the view.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
+        source.toViewOneWay(viewProperty, Option.defaultValue "")
+
     /// Create a one-way binding from a model property to an obj control property, automatically handling the boxing.
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<obj>) =
@@ -364,6 +386,12 @@ type BindPartExtensions =
     [<Extension>]
     static member toViewInpcOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<Nullable<'a>>) =
         source.toViewInpcOneWay(viewProperty, Option.toNullable)
+
+    /// Create a one-way binding, from a string option model property to a string control property, 
+    /// automatically handling the conversion where None on the model becomes empty string on the view.
+    [<Extension>]
+    static member toViewInpcOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
+        source.toViewInpcOneWay(viewProperty, Option.defaultValue "")
 
 
     /// Create a one-way binding from a model property to a function call that updates the view.
