@@ -38,19 +38,21 @@ with
     static member NameProperty = typedefof<Model>.GetProperty("Name")
     static member BooksProperty = typedefof<Model>.GetProperty("Books")
 
-let bookObj2 = BookObj(53, "Something Like That")
+let books = [ 
+    { Id = 27; Name = "Programming For the Brave and True" }
+    { Id = 53; Name = "Something Like That" } 
+]
 
+let bookObjs = books |> List.map (fun b -> BookObj(b.Id, b.Name))
 let model = { Id = 2
               Name = "Dan"
               NickName = Some "D"
               Age = Some 30
-              Books = [ { Id = 27; Name = "Programming For the Brave and True" }
-                        { Id = 53; Name = "Something Like That" } ]
-              BookObjs = [ BookObj(27, "Programming For the Brave and True")
-                           bookObj2 ]
-              BookIndex = 1
-              BookSelection = Some bookObj2
-              BookValue = Some 53
+              Books = books
+              BookObjs = bookObjs
+              BookIndex = -1
+              BookSelection = None
+              BookValue = None
             }
 
 // view stuff
@@ -441,13 +443,11 @@ let ``Model to view correctly updates SelectedIndex to -1`` controlType =
         | ListType -> form.ListBox :> ListControl
 
     Bind.model(<@ model.Books @>).toDataSource(ctrl, <@ fun b -> b.Id, b.Name @>) |> ignore
-    let getList () = ctrl.DataSource :?> Book seq |> Seq.toList
-    getList () |> shouldEqual model.Books
 
     let viewExpr = <@ ctrl.SelectedIndex @>
     let binding = Bind.view(viewExpr).toModel(<@ model.BookIndex @>)
     binding |> testModelToView viewExpr model.BookIndex 1 1
-    binding |> testModelToView viewExpr model.BookIndex -1 -1
+    binding |> testModelToView viewExpr 1 -1 -1
 
 [<Test>]
 let ``Model to view correctly updates SelectedItem to null`` () =
@@ -455,15 +455,12 @@ let ``Model to view correctly updates SelectedItem to null`` () =
     let ctrl = form.ComboBox
 
     Bind.model(<@ model.BookObjs @>).toDataSource(ctrl, <@ fun b -> b.Id, b.Name @>) |> ignore
-    let getList () = ctrl.DataSource :?> BookObj seq |> Seq.toList
-    getList () |> shouldEqual model.BookObjs
 
     let viewExpr = <@ ctrl.SelectedItem @>
     let binding = Bind.view(viewExpr).toModel(<@ model.BookSelection @>)
 
-    ctrl.SelectedIndex <- 1
-
-    binding |> testModelToView viewExpr (model.BookSelection |> Option.toObj |> box) None (null |> box)
+    binding |> testModelToView viewExpr (model.BookSelection |> Option.toObj |> box) (Some bookObjs.[1]) (bookObjs.[1] |> box)
+    binding |> testModelToView viewExpr (bookObjs.[1] |> box) None (null |> box)
     
 [<TestCaseSource("listControls")>]
 let ``Model to view correctly updates SelectedValue to null`` controlType =
@@ -474,12 +471,9 @@ let ``Model to view correctly updates SelectedValue to null`` controlType =
         | ListType -> form.ListBox :> ListControl
 
     Bind.model(<@ model.Books @>).toDataSource(ctrl, <@ fun b -> b.Id, b.Name @>) |> ignore
-    let getList () = ctrl.DataSource :?> Book seq |> Seq.toList
-    getList () |> shouldEqual model.Books
 
     let viewExpr = <@ ctrl.SelectedValue @>
-    let binding = Bind.view(viewExpr).toModel(<@ model.BookSelection @>)
+    let binding = Bind.view(viewExpr).toModel(<@ model.BookValue @>)
 
-    ctrl.SelectedIndex <- 1
-
-    binding |> testModelToView viewExpr (model.BookValue |> Option.toNullable |> box) None (null |> box)
+    binding |> testModelToView viewExpr (model.BookValue |> Option.toNullable |> box) (Some bookObjs.[1].Id) (bookObjs.[1].Id |> box)
+    binding |> testModelToView viewExpr (bookObjs.[1].Id |> box) None (null |> box)
