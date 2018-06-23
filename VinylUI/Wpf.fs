@@ -243,3 +243,26 @@ type BindPartExtensions =
     [<Extension>]
     static member toItemsSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
+
+[<Extension>]
+type WindowExtensions =
+    [<Extension>]
+    static member Show (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        (window :> Window).Closed.Add (fun _ -> subscription.Dispose())
+        window.Show()
+        modelSignal
+
+    [<Extension>]
+    static member ShowDialog (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        use x = subscription
+        (window :> Window).ShowDialog() |> ignore
+        modelSignal.Value
+
+    [<Extension>]
+    static member Run (app: Application, window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        use x = subscription
+        app.Run(window) |> ignore
+        modelSignal.Value
