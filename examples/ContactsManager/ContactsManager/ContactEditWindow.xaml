@@ -1,0 +1,106 @@
+﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:domain="clr-namespace:Domain;assembly=ContactsManager"
+        Title="Edit Contact" Width="400" Height="400">
+    <Window.Resources>
+        <ControlTemplate x:Key="validationError">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Bottom">
+                    <Grid>
+                        <Ellipse Width="12" Height="12" Fill="Red" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <TextBlock Foreground="White" FontWeight="Heavy" FontSize="8"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center">X</TextBlock>
+                    </Grid>
+                    <TextBlock Foreground="Red" FontWeight="Bold" Margin="4,0,0,0" VerticalAlignment="Center"
+                               Text="{Binding ElementName=ErrorAdorner, Path=AdornedElement.(Validation.Errors)[0].ErrorContent}"/>
+                </StackPanel>
+                <AdornedElementPlaceholder x:Name="ErrorAdorner"/>
+            </DockPanel>
+        </ControlTemplate>
+        <domain:NumberTypeConverter x:Key="NumberTypeConverter"/>
+    </Window.Resources>
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.Resources >
+            <Style TargetType="Border" >
+                <Setter Property="Padding" Value="0,0,0,16" />
+            </Style>
+        </Grid.Resources>
+
+        <Border HorizontalAlignment="Right">
+            <Label Content="First Name:"/>
+        </Border>
+        <Border Grid.Column="1" HorizontalAlignment="Left">
+            <TextBox Name="FirstNameBox" Width="200" Height="22" Validation.ErrorTemplate="{StaticResource validationError}"/>
+        </Border>
+
+        <Border Grid.Row="1" HorizontalAlignment="Right">
+            <Label Content="Last Name:"/>
+        </Border>
+        <Border Grid.Row="1" Grid.Column="1" HorizontalAlignment="Left">
+            <TextBox Name="LastNameBox" Width="200" Height="22" Validation.ErrorTemplate="{StaticResource validationError}"/>
+        </Border>
+
+        <Border Grid.Row="2" HorizontalAlignment="Right">
+            <Label Content="Numbers:"/>
+        </Border>
+        <Border Grid.Row="2" Grid.Column="1" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal">
+                <DataGrid Name="NumberGrid" AutoGenerateColumns="False" Width="200">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Number" Width="90"
+                                            Binding="{Binding Number, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                        <DataGridTemplateColumn Header="Type" MinWidth="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Type, Converter={StaticResource NumberTypeConverter}}" Margin="3"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                            <DataGridTemplateColumn.CellEditingTemplate>
+                                <DataTemplate>
+                                    <ComboBox Text="{Binding Type, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource NumberTypeConverter}}"
+                                              ItemsSource="{Binding Source={x:Static domain:NumberType.Choices}}"
+                                              IsEditable="True"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellEditingTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <StackPanel Margin="10 0 0 0" VerticalAlignment="Center">
+                    <Button Name="MoveNumberUp" Content="↑" FontSize="16" Width="25" IsEnabled="false" Margin="0 0 0 10"/>
+                    <Button Name="MoveNumberDown" Content="↓" FontSize="16" Width="25" IsEnabled="false"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="3" HorizontalAlignment="Right">
+            <Label Content="Group:"/>
+        </Border>
+        <Border Grid.Row="3" Grid.Column="1">
+            <ComboBox Name="GroupCombo" IsEditable="True" Width="200" HorizontalAlignment="Left"/>
+        </Border>
+
+        <Border Grid.Row="4" HorizontalAlignment="Right">
+            <Label Content="Notes:"/>
+        </Border>
+        <Border Grid.Row="4" Grid.Column="1">
+            <TextBox Name="NotesBox" Height="22"/>
+        </Border>
+
+        <Grid Grid.Row="5" Grid.Column="2">
+            <Button Name="SaveButton" Content="Save" Width="75" HorizontalAlignment="Left"/>
+            <Button Name="CancelButton" Content="Cancel" Width="75" HorizontalAlignment="Right"/>
+        </Grid>
+    </Grid>
+</Window>
