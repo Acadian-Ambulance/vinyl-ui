@@ -265,14 +265,36 @@ type BindPartExtensions =
 [<Extension>]
 type FormExtensions =
     [<Extension>]
-    static member Show (form: Form, (modelSignal: ISignal<_>, subscription: IDisposable)) =
-        form.Closed.Add (fun _ -> subscription.Dispose())
+    static member Show (form: 'Form, start: 'Form -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start form
+        (form :> Form).Closed.Add (fun _ -> subscription.Dispose())
         form.Show()
         modelSignal
 
     [<Extension>]
-    static member ShowDialog (form: Form, (modelSignal: ISignal<_>, subscription: IDisposable)) =
+    static member ShowDialog (form: 'Form, start: 'Form -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start form
         try
-            form.ShowDialog() |> ignore
+            (form :> Form).ShowDialog() |> ignore
             modelSignal.Value
         finally subscription.Dispose()
+
+    [<Extension>]
+    static member Run (form, start) =
+        let modelSignal = form.Show(start)
+        Application.Run(form :> Form)
+        modelSignal.Value
+
+[<Extension>]
+type FormCsExtensions =
+    [<Extension>]
+    static member Show (form, start: Func<_,_>) =
+        FormExtensions.Show(form, start.Invoke)
+
+    [<Extension>]
+    static member ShowDialog (form, start: Func<_,_>) =
+        FormExtensions.ShowDialog(form, start.Invoke)
+
+    [<Extension>]
+    static member Run (form, start: Func<_,_>) =
+        FormExtensions.Run(form, start.Invoke)

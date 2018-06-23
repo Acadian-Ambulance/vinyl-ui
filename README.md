@@ -118,11 +118,9 @@ Finally, we tie it all together with a call to `Framework.start` with an initial
         }
         Framework.start binder events dispatcher form model
 
-... and in Program.cs we kick things off by calling a Form `Show` extension that accepts the return value of `start` before calling `Application.Run`:
+... and in Program.cs we kick things off by calling VinylUI's `Run` extension on Form that accepts a "start" function:
 
-    var form = new ShapeAreaForm();
-    form.Show(FormLogic.start(form));
-    Application.Run(form);
+    new ShapeAreaForm().Run(FormLogic.start);
 
 Hopefully, this simple example gives you a decent idea of how modeling your application and separating concerns this way can make your code easy to understand and maintain. It keeps Windows Forms and visual concerns out of your business logic. The Model and Events explicitly define what is on the form and how it can be interacted with.
 
