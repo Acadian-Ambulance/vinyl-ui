@@ -11,6 +11,68 @@ open System.Runtime.CompilerServices
 open Microsoft.FSharp.Quotations
 open VinylUI
 
+[<Extension>]
+type WindowExtensions =
+    [<Extension>]
+    static member Show (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        (window :> Window).Closed.Add (fun _ -> subscription.Dispose())
+        window.Show()
+        modelSignal
+
+    [<Extension>]
+    static member ShowDialog (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        use x = subscription
+        (window :> Window).ShowDialog() |> ignore
+        modelSignal.Value
+
+    [<Extension>]
+    static member Run (app: Application, window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        use x = subscription
+        app.Run(window) |> ignore
+        modelSignal.Value
+
+type FSharpValueConverter() =
+    interface IValueConverter with
+        member this.Convert (value, _, _, _) =
+            if value = null then value
+            else
+                let t = value.GetType()
+                if t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<option<_>> then
+                    t.GetProperty("Value").GetValue(value)
+                else value
+
+        member this.ConvertBack (value, targetType, _, _) =
+            if value = null then null
+            else
+                let optType =
+                    if targetType.ContainsGenericParameters then
+                        targetType.MakeGenericType([|value.GetType()|])
+                    else targetType
+                optType.GetConstructors().[0].Invoke([|value|])
+
+[<AutoOpen>]
+module ControlExtensions =
+    let private addGridConverter (column: DataGridColumn) =
+        match column with
+        | :? DataGridTextColumn as c ->
+            match c.Binding with
+            | :? Data.Binding as b when b.Converter = null ->
+                b.Converter <- FSharpValueConverter()
+            | _ -> ()
+        | _ -> ()
+
+    type DataGrid with
+        /// Adds binding converters to handle option types for the current columns and auto-generated columns.
+        member this.AddFSharpConverterToColumns() =
+            this.Columns |> Seq.iter addGridConverter
+            this.AutoGeneratingColumn.Add <| fun e ->
+                let t = e.PropertyType
+                if t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<option<_>> then
+                    addGridConverter e.Column
+
 module WpfBinding =
     open System.Reflection
 
@@ -243,26 +305,3 @@ type BindPartExtensions =
     [<Extension>]
     static member toItemsSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
-
-[<Extension>]
-type WindowExtensions =
-    [<Extension>]
-    static member Show (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
-        let modelSignal, subscription = start window
-        (window :> Window).Closed.Add (fun _ -> subscription.Dispose())
-        window.Show()
-        modelSignal
-
-    [<Extension>]
-    static member ShowDialog (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
-        let modelSignal, subscription = start window
-        use x = subscription
-        (window :> Window).ShowDialog() |> ignore
-        modelSignal.Value
-
-    [<Extension>]
-    static member Run (app: Application, window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
-        let modelSignal, subscription = start window
-        use x = subscription
-        app.Run(window) |> ignore
-        modelSignal.Value
