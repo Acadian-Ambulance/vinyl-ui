@@ -161,7 +161,8 @@ type BindPartExtensions =
     /// Create a two-way binding, automatically converting between string and string option, where null and whitespace from the view becomes None on the model
     [<Extension>]
     static member toModel (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
-        view.toModel(modelProperty, (fun s -> if s |> System.String.IsNullOrWhiteSpace then None else Some s), Option.defaultValue "", ?sourceUpdateMode = sourceUpdateMode)
+        let conv = BindingConverters.getStringConverter ()
+        view.toModel(modelProperty, conv.ToSource, conv.ToControl, ?sourceUpdateMode = sourceUpdateMode)
 
     /// Create a two-way binding between an obj control property and a model property, automatically boxing and unboxing.
     [<Extension>]
@@ -197,7 +198,7 @@ type BindPartExtensions =
     /// automatically handling the conversion where null and whitespace from the view becomes None on the model.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
-        view.toModelOneWay(modelProperty, (fun s -> if s |> System.String.IsNullOrWhiteSpace then None else Some s), ?sourceUpdateMode = sourceUpdateMode)
+        view.toModelOneWay(modelProperty, BindingConverters.getStringConverter().ToSource, ?sourceUpdateMode = sourceUpdateMode)
 
     /// Create a one-way binding from an obj control property to a model property, automatically handling the unboxing.
     [<Extension>]
@@ -233,7 +234,7 @@ type BindPartExtensions =
     /// automatically handling the conversion where None on the model becomes empty string on the view.
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
-        source.toViewOneWay(viewProperty, Option.defaultValue "")
+        source.toViewOneWay(viewProperty, BindingConverters.getStringConverter().ToControl)
 
     /// Create a one-way binding from a model property to an obj control property, automatically handling the boxing.
     [<Extension>]

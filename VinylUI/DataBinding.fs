@@ -104,6 +104,10 @@ type BindingConverters() =
             { ToSource = unbox
               ToControl = box }
 
+    static member getStringConverter () =
+        { ToSource = (fun s -> if String.IsNullOrWhiteSpace s then None else Some s)
+          ToControl = Option.defaultValue "" }
+
 module CommonBinding =
     open BindingPatterns
 
@@ -214,7 +218,8 @@ type BindPartExtensions =
     /// Create a two-way binding, automatically converting between string and string option, where null and whitespace from the view becomes None on the model
     [<Extension>]
     static member toModel (view: BindViewPart<INotifyPropertyChanged, string>, modelProperty: Expr<string option>) =
-        view.toModel(modelProperty, (fun s -> if s |> System.String.IsNullOrWhiteSpace then None else Some s), Option.defaultValue "")
+        let conv = BindingConverters.getStringConverter ()
+        view.toModel(modelProperty, conv.ToSource, conv.ToControl)
 
 
     /// Create a one-way binding from a control property to a model property of the same type.
@@ -244,7 +249,7 @@ type BindPartExtensions =
     /// automatically handling the conversion where null and whitespace from the view becomes None on the model.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, string>, modelProperty: Expr<string option>) =
-        view.toModelOneWay(modelProperty, (fun s -> if String.IsNullOrWhiteSpace s then None else Some s))
+        view.toModelOneWay(modelProperty, BindingConverters.getStringConverter().ToSource)
 
 
     /// Create a one-way binding from a model property to a control property of the same type.
@@ -274,7 +279,7 @@ type BindPartExtensions =
     /// automatically handling the conversion where None on the model becomes empty string on the view.
     [<Extension>]
     static member toViewInpcOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
-        source.toViewInpcOneWay(viewProperty, Option.defaultValue "")
+        source.toViewInpcOneWay(viewProperty, BindingConverters.getStringConverter().ToControl)
 
 
     /// Create a one-way binding from a model property to a function call that updates the view.
