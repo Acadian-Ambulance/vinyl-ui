@@ -322,6 +322,12 @@ type BindPartExtensions =
     static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, 'a>, modelProperty: Expr<'a option>) =
         view.toModelOneWay(modelProperty, Option.ofObj)
 
+    /// Create a one-way binding, from a string control property to a string option model property, 
+    /// automatically handling the conversion where null and whitespace from the view becomes None on the model.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, string>, modelProperty: Expr<string option>) =
+        view.toModelOneWay(modelProperty, (fun s -> if s |> System.String.IsNullOrWhiteSpace then None else Some s))
+
     /// Create a one-way binding from a nullable control property to an option model property, automatically handling the conversion.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, Nullable<'a>>, modelProperty: Expr<'a option>) =
