@@ -354,10 +354,11 @@ let ``Bind model to data source`` () =
 // helper tests
 
 [<Test>]
-let ``getObjConverter for record option type handles nulls`` () =
-    let converter = BindingConverters.getObjConverter<Book option> ()
-    converter.ToSource null |> shouldEqual None
-    converter.ToControl None |> shouldEqual null
+let ``BindingConvert option converters for record option type handles nulls`` () =
+    let toOption = BindingConvert.objToOption<Book option> ()
+    let fromOption = BindingConvert.objFromOption<Book option> ()
+    toOption null |> shouldEqual None
+    fromOption None |> shouldEqual null
 
 type ListControls = ListType | ComboType
 

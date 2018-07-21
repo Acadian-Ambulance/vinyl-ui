@@ -15,18 +15,14 @@ type BindingMode =
     | OneWayToModel of SourceUpdateMode option
     | OneWayToView
 
-type BindingConverter<'Control, 'Source> = {
-    ToControl: 'Source -> 'Control
-    ToSource: 'Control -> 'Source
-}
-
 type BindingInfo<'Control, 'ControlProp, 'SourceProp> = {
     Control: 'Control
     ControlProperty: PropertyInfo
     Source: obj
     SourceProperty: PropertyInfo
     BindingMode: BindingMode
-    Converter: BindingConverter<'ControlProp, 'SourceProp> option
+    ConvertToSource: ('ControlProp -> 'SourceProp) option
+    ConvertToControl: ('SourceProp -> 'ControlProp) option
 }
 
 type BindViewPart<'Control, 'View> = {
@@ -83,30 +79,35 @@ type BindingProxy(initValue) =
 
     static member Property = typedefof<BindingProxy>.GetProperty("Value")
 
-type BindingConverters() =
+type BindingConvert() =
     // used via reflection
-    static member private _objToOptionVal () =
-        { ToSource = unbox >> Option.ofNullable
-          ToControl = Option.toNullable >> box }
-    static member private _objToOptionRef () =
-        { ToSource = Option.ofObj >> Option.map unbox
-          ToControl = Option.toObj >> box }
+    static member private _objToOptionVal () : obj -> _ = unbox >> Option.ofNullable
+    static member private _objFromOptionVal () = Option.toNullable >> box
+    static member private _objToOptionRef () : obj -> _ = Option.ofObj >> Option.map unbox
+    static member private _objFromOptionRef () = Option.toObj >> box
 
-    static member getObjConverter<'a> () =
+    static member private objConverter<'a> isFrom =
+        let wrappedT = typeof<'a>.GetGenericArguments().[0]
+        let direction = if isFrom then "From" else "To"
+        let kind = if wrappedT.IsValueType then "Val" else "Ref"
+        let name = sprintf "_obj%sOption%s" direction kind
+        typedefof<BindingConvert>
+            .GetMethod(name, BindingFlags.Static ||| BindingFlags.NonPublic)
+            .MakeGenericMethod([| wrappedT |])
+            .Invoke(null, null)
+
+    static member objToOption<'a> () =
         if typedefof<'a> = typedefof<option<_>> then
-            let wrappedT = typeof<'a>.GetGenericArguments().[0]
-            let kind = if wrappedT.IsValueType then "Val" else "Ref"
-            typedefof<BindingConverters>
-                .GetMethod("_objToOption" + kind, BindingFlags.Static ||| BindingFlags.NonPublic)
-                .MakeGenericMethod([| wrappedT |])
-                .Invoke(null, null) :?> BindingConverter<obj, 'a>
-        else
-            { ToSource = unbox
-              ToControl = box }
+            BindingConvert.objConverter<'a> false |> unbox<obj -> 'a>
+        else unbox
 
-    static member getStringConverter () =
-        { ToSource = (fun s -> if String.IsNullOrWhiteSpace s then None else Some s)
-          ToControl = Option.defaultValue "" }
+    static member objFromOption<'a> () =
+        if typedefof<'a> = typedefof<option<_>> then
+            BindingConvert.objConverter<'a> true |> unbox<'a -> obj>
+        else box
+
+    static member toStringOption s = if String.IsNullOrWhiteSpace s then None else Some s
+    static member fromStringOption s = s |> Option.defaultValue ""
 
 module CommonBinding =
     open BindingPatterns
@@ -139,23 +140,24 @@ module CommonBinding =
           Source = source.Source
           SourceProperty = source.SourceProperty
           BindingMode = mode
-          Converter = None
+          ConvertToControl = None
+          ConvertToSource = None
         }
 
     let bindInpc (bi: BindingInfo<INotifyPropertyChanged, 'c, 's>) =
         let updateModel () =
             let value = bi.ControlProperty.GetValue bi.Control :?> 'c
             let converted =
-                match bi.Converter with
-                | Some c -> c.ToSource value
+                match bi.ConvertToSource with
+                | Some c -> c value
                 | None -> box value :?> 's
             bi.SourceProperty.SetValue(bi.Source, converted)
 
         let updateView () =
             let value = bi.SourceProperty.GetValue bi.Source :?> 's
             let converted =
-                match bi.Converter with
-                | Some c -> c.ToControl value
+                match bi.ConvertToControl with
+                | Some c -> c value
                 | None -> box value :?> 'c
             bi.ControlProperty.SetValue(bi.Control, converted)
 
@@ -202,7 +204,8 @@ type BindPartExtensions =
     [<Extension>]
     static member toModel (view: BindViewPart<INotifyPropertyChanged, _>, modelProperty, toModel, toView) =
         { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay None) with
-            Converter = Some { ToControl = toView; ToSource = toModel }
+            ConvertToSource = Some toModel
+            ConvertToControl = Some toView
         } |> CommonBinding.createProxy CommonBinding.bindInpc
 
     /// Create a two-way binding, automatically converting between option<'a> and 'a.
@@ -218,8 +221,7 @@ type BindPartExtensions =
     /// Create a two-way binding, automatically converting between string and string option, where null and whitespace from the view becomes None on the model
     [<Extension>]
     static member toModel (view: BindViewPart<INotifyPropertyChanged, string>, modelProperty: Expr<string option>) =
-        let conv = BindingConverters.getStringConverter ()
-        view.toModel(modelProperty, conv.ToSource, conv.ToControl)
+        view.toModel(modelProperty, BindingConvert.toStringOption, BindingConvert.fromStringOption)
 
 
     /// Create a one-way binding from a control property to a model property of the same type.
@@ -232,7 +234,7 @@ type BindPartExtensions =
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, _>, modelProperty, toModel) =
         { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel None) with
-            Converter = Some { ToControl = (fun _ -> failwith "one way binding"); ToSource = toModel }
+            ConvertToSource = Some toModel
         } |> CommonBinding.createProxy CommonBinding.bindInpc
 
     /// Create a one-way binding from a nullable reference control property to an option model property, automatically handling the conversion.
@@ -249,7 +251,7 @@ type BindPartExtensions =
     /// automatically handling the conversion where null and whitespace from the view becomes None on the model.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, string>, modelProperty: Expr<string option>) =
-        view.toModelOneWay(modelProperty, BindingConverters.getStringConverter().ToSource)
+        view.toModelOneWay(modelProperty, BindingConvert.toStringOption)
 
 
     /// Create a one-way binding from a model property to a control property of the same type.
@@ -262,7 +264,7 @@ type BindPartExtensions =
     [<Extension>]
     static member toViewInpcOneWay (source: BindSourcePart<_>, viewProperty, toView) =
         { CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView with
-            Converter = Some { ToControl = toView; ToSource = (fun _ -> failwith "one way binding") }
+            ConvertToControl = Some toView
         } |> CommonBinding.createProxy CommonBinding.bindInpc
 
     /// Create a one-way binding from a option model property to an nullable reference control property, automatically handling the conversion.
@@ -279,7 +281,7 @@ type BindPartExtensions =
     /// automatically handling the conversion where None on the model becomes empty string on the view.
     [<Extension>]
     static member toViewInpcOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
-        source.toViewInpcOneWay(viewProperty, BindingConverters.getStringConverter().ToControl)
+        source.toViewInpcOneWay(viewProperty, BindingConvert.fromStringOption)
 
 
     /// Create a one-way binding from a model property to a function call that updates the view.

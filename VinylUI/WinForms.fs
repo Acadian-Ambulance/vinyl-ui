@@ -21,14 +21,6 @@ module WinFormsBinding =
         | OneWayToModel sm -> (ControlUpdateMode.Never, sm |> Option.map getSourceUpdateMode)
         | OneWayToView -> (ControlUpdateMode.OnPropertyChanged, Some DataSourceUpdateMode.Never)
 
-    let addConverter (binding: WinBinding) (converter: BindingConverter<'c, 's>) =
-        let sanitize (ctrlValue: obj) =
-            match ctrlValue with
-            | :? DBNull -> Unchecked.defaultof<'c>
-            | value -> value |> unbox
-        binding.Format.Add (fun e -> e.Value <- e.Value |> unbox |> converter.ToControl)
-        binding.Parse.Add (fun e -> e.Value <- e.Value |> sanitize |> converter.ToSource)
-
     let createBinding (bindingInfo: BindingInfo<Control, 'c, 's>) =
         let b = bindingInfo
         let controlUpdate, sourceUpdate = getUpdateModes b.BindingMode
@@ -42,7 +34,16 @@ module WinFormsBinding =
                                         true,
                                         sourceUpdate,
                                         ControlUpdateMode = controlUpdate)
-        b.Converter |> Option.iter (addConverter controlBinding)
+        b.ConvertToControl |> Option.iter (fun f ->
+            controlBinding.Format.Add (fun e -> e.Value <- e.Value |> unbox |> f)
+        )
+        b.ConvertToSource |> Option.iter (fun f ->
+            let sanitize (ctrlValue: obj) =
+                match ctrlValue with
+                | :? DBNull -> Unchecked.defaultof<'c>
+                | value -> value |> unbox
+            controlBinding.Parse.Add (fun e -> e.Value <- e.Value |> sanitize |> f)
+        )
 
         // workaround for bindings to SelectedItem not triggering until focus is lost
         if b.ControlProperty.Name = "SelectedItem" && sourceUpdate = DataSourceUpdateMode.OnPropertyChanged then
@@ -146,7 +147,8 @@ type BindPartExtensions =
     [<Extension>]
     static member toModel (view: BindViewPart<Control, _>, modelProperty, toModel, toView, ?sourceUpdateMode) =
         { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode) with
-            Converter = Some { ToControl = toView; ToSource = toModel }
+            ConvertToSource = Some toModel
+            ConvertToControl = Some toView
         } |> CommonBinding.createProxy WinFormsBinding.bindControl
 
     /// Create a two-way binding, automatically converting between option<'a> and 'a.
@@ -159,17 +161,15 @@ type BindPartExtensions =
     static member toModel (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
         view.toModel(modelProperty, Option.ofNullable, Option.toNullable, ?sourceUpdateMode = sourceUpdateMode)
 
-    /// Create a two-way binding, automatically converting between string and string option, where null and whitespace from the view becomes None on the model
-    [<Extension>]
-    static member toModel (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
-        let conv = BindingConverters.getStringConverter ()
-        view.toModel(modelProperty, conv.ToSource, conv.ToControl, ?sourceUpdateMode = sourceUpdateMode)
-
     /// Create a two-way binding between an obj control property and a model property, automatically boxing and unboxing.
     [<Extension>]
     static member toModel (view: BindViewPart<Control, obj>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
-        let converter = BindingConverters.getObjConverter ()
-        view.toModel(modelProperty, converter.ToSource, converter.ToControl, ?sourceUpdateMode = sourceUpdateMode)
+        view.toModel(modelProperty, BindingConvert.objToOption<'a> (), BindingConvert.objFromOption (), ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a two-way binding, automatically converting between string and string option, where null and whitespace from the view becomes None on the model
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, BindingConvert.toStringOption, BindingConvert.fromStringOption, ?sourceUpdateMode = sourceUpdateMode)
 
 
     /// Create a one-way binding from a control property to a model property of the same type.
@@ -182,7 +182,7 @@ type BindPartExtensions =
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, _>, modelProperty, toModel, ?sourceUpdateMode) =
         { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode) with
-            Converter = Some { ToControl = (fun _ -> failwith "one way binding"); ToSource = toModel }
+            ConvertToSource = Some toModel
         } |> CommonBinding.createProxy WinFormsBinding.bindControl
 
     /// Create a one-way binding from a nullable reference control property to an option model property, automatically handling the conversion.
@@ -199,13 +199,12 @@ type BindPartExtensions =
     /// automatically handling the conversion where null and whitespace from the view becomes None on the model.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
-        view.toModelOneWay(modelProperty, BindingConverters.getStringConverter().ToSource, ?sourceUpdateMode = sourceUpdateMode)
+        view.toModelOneWay(modelProperty, BindingConvert.toStringOption, ?sourceUpdateMode = sourceUpdateMode)
 
     /// Create a one-way binding from an obj control property to a model property, automatically handling the unboxing.
     [<Extension>]
     static member toModelOneWay (view: BindViewPart<Control, obj>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
-        let converter = BindingConverters.getObjConverter ()
-        view.toModelOneWay(modelProperty, converter.ToSource, ?sourceUpdateMode = sourceUpdateMode)
+        view.toModelOneWay(modelProperty, BindingConvert.objToOption (), ?sourceUpdateMode = sourceUpdateMode)
 
 
     /// Create a one-way binding from a model property to a control property of the same type.
@@ -218,7 +217,7 @@ type BindPartExtensions =
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<_>, viewProperty, toView) =
         { CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView with
-            Converter = Some { ToControl = toView; ToSource = (fun _ -> failwith "one way binding") }
+            ConvertToControl = Some toView
         } |> CommonBinding.createProxy WinFormsBinding.bindControl
 
     /// Create a one-way binding from a option model property to an nullable reference control property, automatically handling the conversion.
@@ -235,13 +234,12 @@ type BindPartExtensions =
     /// automatically handling the conversion where None on the model becomes empty string on the view.
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
-        source.toViewOneWay(viewProperty, BindingConverters.getStringConverter().ToControl)
+        source.toViewOneWay(viewProperty, BindingConvert.fromStringOption)
 
     /// Create a one-way binding from a model property to an obj control property, automatically handling the boxing.
     [<Extension>]
     static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<obj>) =
-        let converter = BindingConverters.getObjConverter ()
-        source.toViewOneWay(viewProperty, converter.ToControl)
+        source.toViewOneWay(viewProperty, BindingConvert.objFromOption ())
 
 
     /// Create a one-way binding from a model property of type 'a seq to the DataSource of a ListControl.
