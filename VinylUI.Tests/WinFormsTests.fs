@@ -21,6 +21,7 @@ let model = {
     Name = "Dan"
     NickName = Some "D"
     Age = Some 30
+    AgeResult = Ok 30
     Books = books
     BookObjs = bookObjs
     BookIndex = -1
@@ -171,6 +172,30 @@ let ``Bind obj to ref type option two-way`` sourceUpdate =
     binding |> testModelToView viewExpr (model.NickName |> Option.toObj |> box) (Some "J") (box "J")
     binding |> testViewToModel sourceUpdate viewExpr model.NickName (box "M") (Some "M")
 
+[<TestCaseSource("sourceUpdateModes")>]
+let ``Bind string to int two-way with validation`` sourceUpdate =
+    use form = new FakeForm()
+    let viewExpr = <@ form.TextBox.Text @>
+    let parseError = "must be a valid integer"
+    let nonPositiveError = "must be positive"
+    let validator s =
+        match System.Int32.TryParse(s) with
+        | true, i when i > 0 -> Ok i
+        | true, _ -> Error nonPositiveError
+        | false, _ -> Error parseError
+    use errorProvider = new ErrorProvider()
+    let binding = Bind.view(viewExpr).toModelResult(<@ model.AgeResult @>, validator, string, errorProvider, sourceUpdate)
+    binding.ModelProperty |> shouldEqual Model.AgeResultProperty
+    let res r : Result<int, string> = r
+    binding |> testModelToView viewExpr "30" (Ok 7 |> res) "7"
+    binding |> testModelToView viewExpr "7" (Error "test" |> res) "7"
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "abc" (Error parseError)
+    errorProvider.GetError form.TextBox |> shouldEqual parseError
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "0" (Error nonPositiveError)
+    errorProvider.GetError form.TextBox |> shouldEqual nonPositiveError
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "7" (Ok 7)
+    errorProvider.GetError form.TextBox |> shouldEqual ""
+
 // one way to model binding
 
 [<TestCaseSource("sourceUpdateModes")>]
@@ -243,6 +268,28 @@ let ``Bind obj to ref type option one way to model`` sourceUpdate =
     let binding = Bind.view(viewExpr).toModelOneWay(<@ model.NickName @>, sourceUpdate)
     binding |> testNonModelToView viewExpr (box "") (Some "J")
     binding |> testViewToModel sourceUpdate viewExpr model.NickName (box "M") (Some "M")
+
+[<TestCaseSource("sourceUpdateModes")>]
+let ``Bind string to int one way to model with validation`` sourceUpdate =
+    use form = new FakeForm()
+    let viewExpr = <@ form.TextBox.Text @>
+    let parseError = "must be a valid integer"
+    let nonPositiveError = "must be positive"
+    let validator s =
+        match System.Int32.TryParse(s) with
+        | true, i when i > 0 -> Ok i
+        | true, _ -> Error nonPositiveError
+        | false, _ -> Error parseError
+    use errorProvider = new ErrorProvider()
+    let binding = Bind.view(viewExpr).toModelResultOneWay(<@ model.AgeResult @>, validator, errorProvider, sourceUpdate)
+    binding.ModelProperty |> shouldEqual Model.AgeResultProperty
+    binding |> testNonModelToView viewExpr "" (Ok 7)
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "abc" (Error parseError)
+    errorProvider.GetError form.TextBox |> shouldEqual parseError
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "0" (Error nonPositiveError)
+    errorProvider.GetError form.TextBox |> shouldEqual nonPositiveError
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "7" (Ok 7)
+    errorProvider.GetError form.TextBox |> shouldEqual ""
 
 // one way to view binding
 

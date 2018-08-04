@@ -184,6 +184,33 @@ module CommonBinding =
             updateView()
             updateViewOnModelChange ()
 
+    let validationConvert onError toSource toView invalidValue (bindingInfo: BindingInfo<_,_,_>) =
+        let convertToSource x =
+            let converted = toSource x
+            let error =
+                match converted with
+                | Ok _ -> None
+                | Error e -> Some e
+            onError error
+            converted
+        let convertToControl = toView |> Option.map (fun toView ->
+            function
+            | Ok x ->
+                onError None
+                toView x
+            | Error e ->
+                onError (Some e)
+                invalidValue
+                |> Option.bind (fun f -> f ())
+                |> Option.defaultWith (fun () ->
+                    bindingInfo.ControlProperty.GetValue bindingInfo.Control |> unbox
+                )
+            )
+        { bindingInfo with
+            ConvertToSource = Some convertToSource
+            ConvertToControl = convertToControl
+        }
+
 /// Functions for creating bindings
 module Bind =
     /// Start the creation of a binding on an INotifyPropertyChanged-enabled view component property
@@ -194,6 +221,8 @@ module Bind =
 
 [<Extension>]
 type BindPartExtensions =
+    // two way
+
     /// Create a two-way binding between control and model properties of the same type.
     [<Extension>]
     static member toModel (view: BindViewPart<INotifyPropertyChanged, 'a>, modelProperty: Expr<'a>) =
@@ -223,6 +252,19 @@ type BindPartExtensions =
     static member toModel (view: BindViewPart<INotifyPropertyChanged, string>, modelProperty: Expr<string option>) =
         view.toModel(modelProperty, BindingConvert.toStringOption, BindingConvert.fromStringOption)
 
+    /// Create a two-way binding between control and model properties of different types with validation.
+    [<Extension>]
+    static member toModelResult (view: BindViewPart<INotifyPropertyChanged, _>, modelProperty, toModelValidator, toView, onError) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay None)
+        |> CommonBinding.validationConvert onError toModelValidator (Some toView) None
+        |> CommonBinding.createProxy CommonBinding.bindInpc
+
+    /// Create a two-way binding between control and model properties of the same type with validation.
+    [<Extension>]
+    static member toModelResult (view: BindViewPart<INotifyPropertyChanged, _>, modelProperty, toModelValidator, onError) =
+        view.toModelResult(modelProperty, toModelValidator, id, onError)
+
+    // one way to model
 
     /// Create a one-way binding from a control property to a model property of the same type.
     [<Extension>]
@@ -253,6 +295,14 @@ type BindPartExtensions =
     static member toModelOneWay (view: BindViewPart<INotifyPropertyChanged, string>, modelProperty: Expr<string option>) =
         view.toModelOneWay(modelProperty, BindingConvert.toStringOption)
 
+    /// Create a one-way binding from a control property to a model property of a different type with validation.
+    [<Extension>]
+    static member toModelResultOneWay (view: BindViewPart<INotifyPropertyChanged, _>, modelProperty, toModelValidator, onError) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel None)
+        |> CommonBinding.validationConvert onError toModelValidator None None
+        |> CommonBinding.createProxy CommonBinding.bindInpc
+
+    // one way to view
 
     /// Create a one-way binding from a model property to a control property of the same type.
     [<Extension>]
@@ -283,6 +333,7 @@ type BindPartExtensions =
     static member toViewInpcOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
         source.toViewInpcOneWay(viewProperty, BindingConvert.fromStringOption)
 
+    // source to callback
 
     /// Create a one-way binding from a model property to a function call that updates the view.
     [<Extension>]

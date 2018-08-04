@@ -131,6 +131,33 @@ module WpfBinding =
 
     let bindControl bindingInfo = createBinding bindingInfo |> ignore
 
+    type RawValidationRule() =
+        inherit ValidationRule(ValidationStep.RawProposedValue, false)
+        override this.Validate (_, _) = ValidationResult(true, null)
+
+    let validationConvert toSource toView (bindingInfo: BindingInfo<Control, _, _>) =
+        // Workaround to preserve control value when it is converted to an Error.
+        // Control setters pass values through the converter both ways, which we can't allow to happen since conversion
+        // to an Error discards the original input.
+        let mutable prevValue = None
+        let toSource x =
+            prevValue <- Some x
+            toSource x
+        let errorValue () =
+            let v = prevValue
+            prevValue <- None
+            v
+
+        let bindExpr = lazy bindingInfo.Control.GetBindingExpression(getDependencyProperty bindingInfo.ControlProperty)
+        let rule = RawValidationRule()
+        let onError = function
+            | Some e ->
+                let error = ValidationError(rule, bindExpr.Value, e, null)
+                Validation.MarkInvalid(bindExpr.Value, error)
+            | None -> Validation.ClearInvalid(bindExpr.Value)
+        CommonBinding.validationConvert onError toSource toView (Some errorValue) bindingInfo
+
+
 /// Functions for creating bindings
 module Bind =
     /// Start the creation of a binding on a control property
@@ -170,6 +197,8 @@ module ListSource =
 
 [<Extension>]
 type BindPartExtensions =
+    // two way
+
     /// Create a two-way binding between control and model properties of the same type.
     [<Extension>]
     static member toModel (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
@@ -209,6 +238,19 @@ type BindPartExtensions =
     static member toModel (view: BindViewPart<Control, IEnumerable>, modelProperty: Expr<'a seq>, ?sourceUpdateMode) =
         view.toModel(modelProperty, Seq.cast<'a>, (fun s -> s :> IEnumerable), ?sourceUpdateMode = sourceUpdateMode)
 
+    /// Create a two-way binding between control and model properties of different types with validation.
+    [<Extension>]
+    static member toModelResult (view: BindViewPart<Control, _>, modelProperty, toModelValidator, toView, ?sourceUpdateMode) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode)
+        |> WpfBinding.validationConvert toModelValidator (Some toView)
+        |> CommonBinding.createProxy WpfBinding.bindControl
+
+    /// Create a two-way binding between control and model properties of the same type with validation.
+    [<Extension>]
+    static member toModelResult (view: BindViewPart<Control, _>, modelProperty, toModelValidator, ?sourceUpdateMode) =
+        view.toModelResult(modelProperty, toModelValidator, id, ?sourceUpdateMode = sourceUpdateMode)
+
+    // one way to model
 
     /// Create a one-way binding from a control property to a model property of the same type.
     [<Extension>]
@@ -249,6 +291,14 @@ type BindPartExtensions =
     static member toModelOneWay (view: BindViewPart<Control, IEnumerable>, modelProperty: Expr<'a seq>, ?sourceUpdateMode) =
         view.toModelOneWay(modelProperty, Seq.cast<'a>, ?sourceUpdateMode = sourceUpdateMode)
 
+    /// Create a one-way binding from a control property to a model property of a different type with validation.
+    [<Extension>]
+    static member toModelResultOneWay (view: BindViewPart<Control, _>, modelProperty, toModelValidator, ?sourceUpdateMode) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode)
+        |> WpfBinding.validationConvert toModelValidator None
+        |> CommonBinding.createProxy WpfBinding.bindControl
+
+    // one way to view
 
     /// Create a one-way binding from a model property to a control property of the same type.
     [<Extension>]
@@ -289,6 +339,7 @@ type BindPartExtensions =
     static member toViewOneWay (source: BindSourcePart<_>, viewProperty: Expr<IEnumerable>) =
         source.toViewOneWay(viewProperty, (fun s -> upcast s))
 
+    // source to callback
 
     /// Create a one-way binding from a model property of type 'a seq to the ItemsSource of a list control.
     /// `valueDisplayProperties` should be a quotation of a function that takes an 'a and returns a tuple of the
