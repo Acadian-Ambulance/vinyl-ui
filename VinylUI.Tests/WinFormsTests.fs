@@ -417,6 +417,19 @@ let ``fromSeq preserves selection`` () =
     setSource [ books.[1] ]
     form.ListBox.SelectedIndex |> shouldEqual -1
 
+[<Test>]
+let ``fromItems preserves selection`` () =
+    use form = new FakeForm()
+    ListSource.fromItems form.ListBox [1; 2; 3]
+    form.ListBox.SelectedIndex |> shouldEqual -1
+
+    form.ListBox.SelectedIndex <- 0
+    ListSource.fromItems form.ListBox [3; 1; 2]
+    form.ListBox.SelectedIndex |> shouldEqual 1
+
+    ListSource.fromItems form.ListBox [3]
+    form.ListBox.SelectedIndex |> shouldEqual -1
+
 type ListControls = ListType | ComboType
 
 let listControls = [ ListType; ComboType ]

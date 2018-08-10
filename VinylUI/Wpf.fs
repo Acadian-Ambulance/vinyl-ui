@@ -198,6 +198,15 @@ module ListSource =
     /// The current selection will be preserved when possible.
     let fromPairs control (source: ('value * 'display) seq) = fromDict control (dict source)
 
+    /// Set the ItemsSource.
+    /// The current selection will be preserved when possible.
+    let fromItems (control: Selector) source =
+        let selected = control.SelectedItem
+        control.ItemsSource <- source
+        match selected with
+        | null -> control.SelectedIndex <- -1
+        | s -> control.SelectedItem <- s
+
 [<Extension>]
 type BindPartExtensions =
     // two way
@@ -360,3 +369,8 @@ type BindPartExtensions =
     [<Extension>]
     static member toItemsSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
+
+    /// Create a one-way binding from a model property of type 'a seq to the ItemsSource of a list control.
+    [<Extension>]
+    static member toItemsSource (source: BindSourcePart<_>, control) =
+        source.toFunc(ListSource.fromItems control)

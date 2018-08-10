@@ -315,3 +315,16 @@ let ``fromSeq preserves selection`` () =
 
     setSource [ books.[1] ]
     window.ListBox.SelectedIndex |> shouldEqual -1
+
+[<Test>]
+let ``fromItems preserves selection`` () =
+    let window = new FakeWindow()
+    ListSource.fromItems window.ListBox [1; 2; 3]
+    window.ListBox.SelectedIndex |> shouldEqual -1
+
+    window.ListBox.SelectedIndex <- 0
+    ListSource.fromItems window.ListBox [3; 1; 2]
+    window.ListBox.SelectedIndex |> shouldEqual 1
+
+    ListSource.fromItems window.ListBox [3]
+    window.ListBox.SelectedIndex |> shouldEqual -1

@@ -143,6 +143,21 @@ module ListSource =
     /// The current selection will be preserved when possible.
     let fromPairs (control: ListControl) (source: ('value * 'display) seq) = fromDict control (dict source)
 
+    /// Set the DataSource.
+    /// The current selection will be preserved when possible.
+    let fromItems (control: ListControl) source =
+        let selected =
+            match control with
+            | :? ListBox as c -> c.SelectedItem
+            | :? ComboBox as c -> c.SelectedItem
+            | _ -> null
+        control.DataSource <- Seq.toArray source
+        control.SelectedIndex <- -1
+        if selected <> null then
+            match control with
+            | :? ListBox as c -> c.SelectedItem <- selected
+            | :? ComboBox as c -> c.SelectedItem <- selected
+            | _ -> ()
 
 /// Functions for creating bindings
 module Bind =
@@ -296,6 +311,11 @@ type BindPartExtensions =
     [<Extension>]
     static member toDataSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
+
+    /// Create a one-way binding from a model property of type 'a seq to the DataSource of a ListControl.
+    [<Extension>]
+    static member toDataSource (source: BindSourcePart<_>, control) =
+        source.toFunc(ListSource.fromItems control)
 
 
 [<Extension>]
