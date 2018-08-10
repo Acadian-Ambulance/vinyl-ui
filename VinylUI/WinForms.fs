@@ -106,11 +106,7 @@ module ListSource =
     open VinylUI.BindingPatterns
 
     let private setSource (control: ListControl) (source: 'a seq) valueMember displayMember =
-        let setSelection =
-             match control, control.SelectedValue with
-             | :? ListBox as c, _ when c.SelectionMode = SelectionMode.None -> ignore
-             | _, null -> (fun () -> control.SelectedIndex <- -1)
-             | _, s -> (fun () -> control.SelectedValue <- s)
+        let selectedValue = control.SelectedValue
         control.DataSource <- null
         (* we have to set the members both before and after setting the DataSource. We have to set it before in case
          * event handlers try to read a value as soon as the DataSource is set, and we have to set it after because 
@@ -120,11 +116,16 @@ module ListSource =
         control.DataSource <- Seq.toArray source
         control.DisplayMember <- displayMember
         control.ValueMember <- valueMember
-        setSelection ()
+
+        match control, selectedValue with
+        | :? ListBox as c, _ when c.SelectionMode = SelectionMode.None -> ()
+        | _, null -> control.SelectedIndex <- -1
+        | _, s -> control.SelectedValue <- s
 
     /// Set the DataSource to a sequence of objects.
     /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
     /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
+    /// The current selection will be preserved when possible.
     let fromSeq control (valueDisplayProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
         let (valueMember, displayMember) =
             match valueDisplayProperties with
@@ -134,10 +135,12 @@ module ListSource =
 
     /// Set the DataSource to the contents of a dictionary.
     /// The keys will be the control items' values and the dictionary values will be the items' text.
+    /// The current selection will be preserved when possible.
     let fromDict control (source: IDictionary<'value, 'display>) =
         setSource control source "Key" "Value"
 
     /// Set the DataSource to a sequence of value * display pairs.
+    /// The current selection will be preserved when possible.
     let fromPairs (control: ListControl) (source: ('value * 'display) seq) = fromDict control (dict source)
 
 

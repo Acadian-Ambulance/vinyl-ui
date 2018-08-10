@@ -168,18 +168,19 @@ module ListSource =
     open VinylUI.BindingPatterns
 
     let private setSource (control: Selector) (source: 'a seq) valueMember displayMember =
-        let setSelection =
-            match control.SelectedValue with
-            | null -> (fun () -> control.SelectedIndex <- -1)
-            | s -> (fun () -> control.SelectedValue <- s)
+        let selected = control.SelectedValue
         control.SelectedValuePath <- valueMember
         control.DisplayMemberPath <- displayMember
         control.ItemsSource <- Seq.toArray source
-        setSelection ()
+
+        match selected with
+        | null -> control.SelectedIndex <- -1
+        | s -> control.SelectedValue <- s
 
     /// Set the ItemsSource to a sequence of objects.
     /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
     /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
+    /// The current selection will be preserved when possible.
     let fromSeq control (valueDisplayProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
         let (valueMember, displayMember) =
             match valueDisplayProperties with
@@ -189,10 +190,12 @@ module ListSource =
 
     /// Set the ItemsSource to the contents of a dictionary.
     /// The keys will be the control items' values and the dictionary values will be the items' text.
+    /// The current selection will be preserved when possible.
     let fromDict control (source: IDictionary<'value, 'display>) =
         setSource control source "Key" "Value"
 
     /// Set the ItemsSource to a sequence of value * display pairs.
+    /// The current selection will be preserved when possible.
     let fromPairs control (source: ('value * 'display) seq) = fromDict control (dict source)
 
 [<Extension>]

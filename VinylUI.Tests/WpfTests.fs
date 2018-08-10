@@ -290,10 +290,28 @@ let ``Bind model to ItemsSource`` () =
     let binding = Bind.model(<@ model.Books @>).toItemsSource(window.ListBox, <@ fun b -> b.Id, b.Name @>)
     binding.ModelProperty |> shouldEqual Model.BooksProperty
     getList () |> shouldEqual model.Books
+
     window.ListBox.SelectedIndex <- 0
     window.ListBox.SelectedItem |> unbox |> shouldEqual model.Books.[0]
     window.ListBox.SelectedValue |> unbox |> shouldEqual model.Books.[0].Id
 
-    let newList = [ { Id = 99; Name = "Dependency Injection" } ]
+    let newList = [ { Id = 99; Name = "Dependency Injection" }; model.Books.[0] ]
     binding.SetView (box newList)
     getList () |> shouldEqual newList
+
+    window.ListBox.SelectedIndex |> shouldEqual 1
+    window.ListBox.SelectedItem |> unbox |> shouldEqual model.Books.[0]
+
+[<Test>]
+let ``fromSeq preserves selection`` () =
+    let window = new FakeWindow()
+    let setSource : Book seq -> unit = ListSource.fromSeq window.ListBox <@ fun b -> b.Id, b.Name @>
+    setSource books
+    window.ListBox.SelectedIndex |> shouldEqual -1
+
+    window.ListBox.SelectedIndex <- 0
+    setSource (List.rev books)
+    window.ListBox.SelectedIndex |> shouldEqual 1
+
+    setSource [ books.[1] ]
+    window.ListBox.SelectedIndex |> shouldEqual -1

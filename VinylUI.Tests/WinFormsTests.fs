@@ -389,23 +389,33 @@ let ``Bind model to data source`` () =
     let binding = Bind.model(<@ model.Books @>).toDataSource(form.ListBox, <@ fun b -> b.Id, b.Name @>)
     binding.ModelProperty |> shouldEqual Model.BooksProperty
     getList () |> shouldEqual model.Books
-    form.ListBox.SelectedIndex <- 0
-    form.ListBox.SelectedItem |> unbox |> shouldEqual model.Books.[0]
-    form.ListBox.SelectedValue |> unbox |> shouldEqual model.Books.[0].Id
-    form.ListBox.Text |> shouldEqual model.Books.[0].Name
+    form.ListBox.SelectedIndex |> shouldEqual -1
 
-    let newList = [ { Id = 99; Name = "Dependency Injection" } ]
+    form.ListBox.SelectedIndex <- 0
+    form.ListBox.SelectedItem |> unbox |> shouldEqual books.[0]
+    form.ListBox.SelectedValue |> unbox |> shouldEqual books.[0].Id
+    form.ListBox.Text |> shouldEqual books.[0].Name
+
+    let newList = [ { Id = 99; Name = "Dependency Injection" }; books.[0] ]
     binding.SetView (box newList)
     getList () |> shouldEqual newList
 
-// helper tests
+    form.ListBox.SelectedIndex |> shouldEqual 1
+    form.ListBox.SelectedItem |> unbox |> shouldEqual books.[0]
 
 [<Test>]
-let ``BindingConvert option converters for record option type handles nulls`` () =
-    let toOption = BindingConvert.objToOption<Book option> ()
-    let fromOption = BindingConvert.objFromOption<Book option> ()
-    toOption null |> shouldEqual None
-    fromOption None |> shouldEqual null
+let ``fromSeq preserves selection`` () =
+    use form = new FakeForm()
+    let setSource : Book seq -> unit = ListSource.fromSeq form.ListBox <@ fun b -> b.Id, b.Name @>
+    setSource books
+    form.ListBox.SelectedIndex |> shouldEqual -1
+
+    form.ListBox.SelectedIndex <- 0
+    setSource (List.rev books)
+    form.ListBox.SelectedIndex |> shouldEqual 1
+
+    setSource [ books.[1] ]
+    form.ListBox.SelectedIndex |> shouldEqual -1
 
 type ListControls = ListType | ComboType
 
@@ -454,3 +464,12 @@ let ``Model to view correctly updates SelectedValue to null`` controlType =
 
     binding |> testModelToView viewExpr (model.BookValue |> Option.toNullable |> box) (Some bookObjs.[1].Id) (bookObjs.[1].Id |> box)
     binding |> testModelToView viewExpr (bookObjs.[1].Id |> box) None (null |> box)
+
+// helper tests
+
+[<Test>]
+let ``BindingConvert option converters for record option type handles nulls`` () =
+    let toOption = BindingConvert.objToOption<Book option> ()
+    let fromOption = BindingConvert.objFromOption<Book option> ()
+    toOption null |> shouldEqual None
+    fromOption None |> shouldEqual null
