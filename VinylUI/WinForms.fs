@@ -54,35 +54,25 @@ module WinFormsBinding =
             | _ -> ()
         
         // workaround for SelectedIndex needing to be set to -1 twice issue
-        if b.ControlProperty.Name = "SelectedIndex" then
-            let fixIndex (c: ListControl) =
+        match b.ControlProperty.Name, b.Control with
+        | "SelectedIndex", (:? ListControl as c) ->
+            controlBinding.BindingComplete.Add <| fun _ ->
                 let sourceIndex = b.SourceProperty.GetValue(b.Source) :?> int
                 if sourceIndex = -1 && c.SelectedIndex <> -1 then
                     c.SelectedIndex <- -1
-            match b.Control with
-            | :? ComboBox as c -> controlBinding.BindingComplete.Add (fun _ -> fixIndex c)
-            | :? ListBox as c -> controlBinding.BindingComplete.Add (fun _ -> fixIndex c)
-            | _ -> ()
-        
-        if b.ControlProperty.Name = "SelectedItem" then
-            match b.Control with
-            | :? ComboBox as c -> controlBinding.BindingComplete.Add <| fun _ -> 
+        | "SelectedItem", (:? ComboBox as c) ->
+            controlBinding.BindingComplete.Add <| fun _ -> 
                 let sourceItem = b.SourceProperty.GetValue(b.Source)
                 if sourceItem = null && c.SelectedItem <> null then
                     c.SelectedIndex <- -1
                     if c.SelectedIndex <> -1 then
                         c.SelectedIndex <- -1
-            | _ -> ()
-
-        if b.ControlProperty.Name = "SelectedValue" then
-            let fixValue (c: ListControl) =
-                let sourceItem = b.SourceProperty.GetValue(b.Source)
-                if sourceItem = null && c.SelectedValue <> null then
+        | "SelectedValue", (:? ListControl as c) ->
+            controlBinding.BindingComplete.Add <| fun _ ->
+                let sourceValue = b.SourceProperty.GetValue(b.Source)
+                if sourceValue = null && c.SelectedValue <> null then
                     c.SelectedIndex <- -1
-            match b.Control with
-            | :? ComboBox as c -> controlBinding.BindingComplete.Add (fun _ -> fixValue c)
-            | :? ListBox as c -> controlBinding.BindingComplete.Add (fun _ -> fixValue c)
-            | _ -> ()
+        | _ -> ()
 
         b.Control.DataBindings.Add controlBinding
         controlBinding
