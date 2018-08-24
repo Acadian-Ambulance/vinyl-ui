@@ -95,9 +95,10 @@ module ListSource =
 
     let private setSource (control: ListControl) (source: 'a seq) valueMember displayMember =
         let setSelection =
-            match control.SelectedValue with
-            | null -> (fun () -> control.SelectedIndex <- -1)
-            | s -> (fun () -> control.SelectedValue <- s)
+            match control with
+            | :? ListBox as c when c.SelectionMode = SelectionMode.None -> ignore
+            | c when c.SelectedValue = null -> (fun () -> control.SelectedIndex <- -1)
+            | c -> (fun () -> control.SelectedValue <- c.SelectedValue)
         control.DataSource <- null
         (* we have to set the members both before and after setting the DataSource. We have to set it before in case
          * event handlers try to read a value as soon as the DataSource is set, and we have to set it after because 
