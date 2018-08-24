@@ -107,7 +107,9 @@ module ListSource =
         control.DataSource <- Seq.toArray source
         control.DisplayMember <- displayMember
         control.ValueMember <- valueMember
-        setSelection ()
+        match control with 
+        | :? ListBox as c when c.SelectionMode = SelectionMode.None -> ()
+        | _ -> setSelection ()
 
     /// Set the DataSource to a sequence of objects.
     /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
