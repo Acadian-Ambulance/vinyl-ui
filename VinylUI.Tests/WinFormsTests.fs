@@ -1,42 +1,13 @@
-﻿module DataBindingWinFormsTests
+﻿module WinFormsTests
 
 open System
 open System.Windows.Forms
-open System.ComponentModel
 open System.Reflection
-open Microsoft.FSharp.Quotations
 open NUnit.Framework
 open FsUnitTyped
 open VinylUI
 open VinylUI.WinForms
-
-// model stuff
-
-type Book = {
-    Id: int
-    Name: string
-}
-
-[<AllowNullLiteralAttribute>]
-type BookObj(id: int, name: string) =
-    member this.Id = id
-    member this.Name = name
-
-type Model = {
-    Id: int
-    Name: string
-    NickName: string option
-    Age: int option
-    Books: Book list
-    BookObjs: BookObj list
-    BookIndex: int
-    BookSelection: BookObj option
-    BookValue: int option
-}
-with
-    static member IdProperty = typedefof<Model>.GetProperty("Id")
-    static member NameProperty = typedefof<Model>.GetProperty("Name")
-    static member BooksProperty = typedefof<Model>.GetProperty("Books")
+open BindingTestUtil
 
 let books = [ 
     { Id = 27; Name = "Programming For the Brave and True" }
@@ -44,16 +15,18 @@ let books = [
 ]
 
 let bookObjs = books |> List.map (fun b -> BookObj(b.Id, b.Name))
-let model = { Id = 2
-              Name = "Dan"
-              NickName = Some "D"
-              Age = Some 30
-              Books = books
-              BookObjs = bookObjs
-              BookIndex = -1
-              BookSelection = None
-              BookValue = None
-            }
+
+let model = {
+    Id = 2
+    Name = "Dan"
+    NickName = Some "D"
+    Age = Some 30
+    Books = books
+    BookObjs = bookObjs
+    BookIndex = -1
+    BookSelection = None
+    BookValue = None
+}
 
 // view stuff
 
@@ -74,20 +47,9 @@ type NumberBox() =
             this.Text <- string v
             changedEvent.Trigger(this, EventArgs.Empty)
 
-type InpcControl<'a when 'a: equality>(initVal: 'a) =
-    let mutable value = initVal
-    let propChanged = Event<_,_>()
-
-    member this.Value
-        with get () = value
-        and set v =
-            if value <> v then
-                value <- v
-                propChanged.Trigger(this, PropertyChangedEventArgs("Value"))
-
-    interface INotifyPropertyChanged with
-        [<CLIEvent>]
-        member this.PropertyChanged = propChanged.Publish
+    override this.ToString() =
+        let v = this.Value |> Option.ofNullable |> Option.map string |> Option.defaultValue "<null>"
+        sprintf "NumberBox Value=%s Text=%s" v this.Text
 
 type FakeForm() =
     let ctx = BindingContext()
@@ -109,72 +71,16 @@ type FakeForm() =
             this.ListBox.Dispose()
             this.NumberBox.Dispose()
 
-let validate (ctl: Control) =
+let updateControl (cp: BindViewPart<Control, _>) =
     let notify = typedefof<Control>.GetMethod("NotifyValidating", BindingFlags.Instance ||| BindingFlags.NonPublic)
-    notify.Invoke(ctl, null) |> ignore
+    notify.Invoke(cp.Control, null) |> ignore
 
-// test utils
-
-let controlGet cp = cp.ControlProperty.GetValue cp.Control
-let controlSet x cp = cp.ControlProperty.SetValue(cp.Control, x)
-
-let testModelToView (viewExpr: Expr<'v>) (startVal: 'v) newVal expectedVal binding =
-    let cp = CommonBinding.controlPart viewExpr
-    use s = binding.ViewChanged.Subscribe (fun _ -> failwith "view should not be updated here")
-    controlGet cp :?> 'v |> shouldEqual startVal
-    binding.SetView (box newVal)
-    controlGet cp :?> 'v |> shouldEqual expectedVal
-
-let testNonModelToView (viewExpr: Expr<'v>) (startVal: 'v) newVal binding =
-    let cp = CommonBinding.controlPart viewExpr
-    use s = binding.ViewChanged.Subscribe (fun _ -> failwith "view should not be updated here")
-    controlGet cp :?> 'v |> shouldEqual startVal
-    binding.SetView (box newVal)
-    controlGet cp :?> 'v |> shouldEqual startVal
-
-let testViewToModel sourceUpdate (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal binding =
-    let cp = CommonBinding.controlPart viewExpr
-    let mutable fromView = startVal
-    binding.SetView (box startVal)
-    use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
-    controlSet newVal cp
-    match sourceUpdate with
-    | OnChange -> fromView |> shouldEqual expectedVal
-    | OnValidation -> fromView |> shouldEqual startVal
-    validate cp.Control
-    fromView |> shouldEqual expectedVal
-
-let testViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) expectedVal binding =
-    let cp = CommonBinding.controlPart viewExpr
-    let mutable fromView = startVal
-    binding.SetView (box startVal)
-    use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
-    controlSet newVal cp
-    fromView |> shouldEqual expectedVal
-
-let testNonViewToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
-    let cp = CommonBinding.controlPart viewExpr
-    let mutable fromView = startVal
-    binding.SetView (box startVal)
-    use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
-    controlSet newVal cp
-    fromView |> shouldEqual startVal
-    validate cp.Control
-    fromView |> shouldEqual startVal
-
-let testNonViewInpcToModel (viewExpr: Expr<'v>) startVal (newVal: 'v) binding =
-    let cp = CommonBinding.controlPart viewExpr
-    binding.SetView (box startVal)
-    let mutable fromView = startVal
-    use s = binding.ViewChanged.Subscribe (fun n -> fromView <- n :?> 'm)
-    controlSet newVal cp
-    fromView |> shouldEqual startVal
+let testViewToModel sourceUpdate = testViewToModel updateControl sourceUpdate
+let testNonViewToModel viewExpr = testNonViewToModel updateControl viewExpr
 
 let sourceUpdateModes = [ OnValidation; OnChange ]
 
-// finally, the tests
-
-// two-way
+// two-way binding
 
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind matching properties two-way`` sourceUpdate =
@@ -262,7 +168,7 @@ let ``Bind obj to ref type option two-way`` sourceUpdate =
     binding |> testModelToView viewExpr (model.NickName |> Option.toObj |> box) (Some "J") (box "J")
     binding |> testViewToModel sourceUpdate viewExpr model.NickName (box "M") (Some "M")
 
-// one way to model
+// one way to model binding
 
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind matching properties one way to model`` sourceUpdate =
@@ -335,7 +241,7 @@ let ``Bind obj to ref type option one way to model`` sourceUpdate =
     binding |> testNonModelToView viewExpr (box "") (Some "J")
     binding |> testViewToModel sourceUpdate viewExpr model.NickName (box "M") (Some "M")
 
-// one way to view
+// one way to view binding
 
 [<Test>]
 let ``Bind matching properties one way to view`` () =
@@ -446,7 +352,7 @@ let ``Bind model to data source`` () =
 
 [<Test>]
 let ``getObjConverter for record option type handles nulls`` () =
-    let converter = BindPartExtensions.getObjConverter<Book option> ()
+    let converter = BindingConverters.getObjConverter<Book option> ()
     converter.ToSource null |> shouldEqual None
     converter.ToControl None |> shouldEqual null
 
