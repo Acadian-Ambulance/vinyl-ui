@@ -244,16 +244,6 @@ type BindPartExtensions =
         source.toViewOneWay(viewProperty, converter.ToControl)
 
 
-    /// Create a one-way binding from a model property to a function call that updates the view.
-    [<Extension>]
-    static member toFunc (source: BindSourcePart<'a>, updateView) =
-        let update = unbox<'a> >> updateView
-        update (source.SourceProperty.GetValue source.Source)
-        { ModelProperty = source.SourceProperty
-          ViewChanged = Event<_>().Publish
-          SetView = update
-        }
-
     /// Create a one-way binding from a model property of type 'a seq to the DataSource of a ListControl.
     /// `valueDisplayProperties` should be a quotation of a function that takes an 'a and returns a tuple of the
     /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
