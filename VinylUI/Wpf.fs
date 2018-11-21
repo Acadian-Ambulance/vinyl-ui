@@ -13,6 +13,8 @@ open VinylUI
 
 [<Extension>]
 type WindowExtensions =
+    /// Opens a window with VinylUI and returns immediately, without waiting for the window to be closed.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
     [<Extension>]
     static member Show (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
         let modelSignal, subscription = start window
@@ -20,6 +22,8 @@ type WindowExtensions =
         window.Show()
         modelSignal
 
+    /// Opens a window with VinylUI and returns when the window is closed.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
     [<Extension>]
     static member ShowDialog (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
         let modelSignal, subscription = start window
@@ -27,6 +31,8 @@ type WindowExtensions =
         (window :> Window).ShowDialog() |> ignore
         modelSignal.Value
 
+    /// Starts a WPF application with VinylUI and opens the given window.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
     [<Extension>]
     static member Run (app: Application, window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
         let modelSignal, subscription = start window
@@ -35,6 +41,7 @@ type WindowExtensions =
         modelSignal.Value
 
 type FSharpValueConverter() =
+    /// WPF value converter to convert to and from FSharp types, such as option.
     interface IValueConverter with
         member this.Convert (value, _, _, _) =
             if value = null then value
@@ -124,7 +131,7 @@ module WpfBinding =
                   member this.ConvertBack (value, _, _, _) = toSource value
                 }
         if mode = WpfBindingMode.OneWayToSource then
-            // workaround for bug where one-way-to-source resets control value
+            // workaround for WPF bug where one-way-to-source resets control value
             binding.FallbackValue <- bi.ControlProperty.GetValue bi.Control
         bi.Control.SetBinding(getDependencyProperty bi.ControlProperty, binding) |> ignore
         binding
@@ -351,7 +358,7 @@ type BindPartExtensions =
     static member toViewOneWay (source: BindSourcePart<_>, viewProperty: Expr<IEnumerable>) =
         source.toViewOneWay(viewProperty, (fun s -> upcast s))
 
-    // source to callback
+    // model to callback
 
     /// Create a one-way binding from a model property of type 'a seq to the ItemsSource of a list control.
     /// `valueDisplayProperties` should be a quotation of a function that takes an 'a and returns a tuple of the

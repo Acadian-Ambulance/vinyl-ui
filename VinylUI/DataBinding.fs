@@ -333,7 +333,7 @@ type BindPartExtensions =
     static member toViewInpcOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
         source.toViewInpcOneWay(viewProperty, BindingConvert.fromStringOption)
 
-    // source to callback
+    // model to callback
 
     /// Create a one-way binding from a model property to a function call that updates the view.
     [<Extension>]

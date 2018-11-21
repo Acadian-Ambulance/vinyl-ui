@@ -7,6 +7,50 @@ open System.Collections.Generic
 open Microsoft.FSharp.Quotations
 open VinylUI
 
+[<Extension>]
+type FormExtensions =
+    /// Opens a form with VinylUI and returns immediately, without waiting for the form to be closed.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
+    [<Extension>]
+    static member Show (form: 'Form, start: 'Form -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start form
+        (form :> Form).Closed.Add (fun _ -> subscription.Dispose())
+        form.Show()
+        modelSignal
+
+    /// Opens a form with VinylUI and returns when the form is closed.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
+    [<Extension>]
+    static member ShowDialog (form: 'Form, start: 'Form -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start form
+        try
+            (form :> Form).ShowDialog() |> ignore
+            modelSignal.Value
+        finally subscription.Dispose()
+
+    /// Starts a WPF application with VinylUI and opens the given form.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
+    [<Extension>]
+    static member Run (form, start) =
+        let modelSignal = form.Show(start)
+        Application.Run(form :> Form)
+        modelSignal.Value
+
+[<Extension>]
+type FormCsExtensions =
+    [<Extension>]
+    static member Show (form, start: Func<_,_>) =
+        FormExtensions.Show(form, start.Invoke)
+
+    [<Extension>]
+    static member ShowDialog (form, start: Func<_,_>) =
+        FormExtensions.ShowDialog(form, start.Invoke)
+
+    [<Extension>]
+    static member Run (form, start: Func<_,_>) =
+        FormExtensions.Run(form, start.Invoke)
+
+
 module WinFormsBinding =
     type WinBinding = System.Windows.Forms.Binding
 
@@ -283,7 +327,7 @@ type BindPartExtensions =
     static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<obj>) =
         source.toViewOneWay(viewProperty, BindingConvert.objFromOption ())
 
-    // source to callback
+    // model to callback
 
     /// Create a one-way binding from a model property of type 'a seq to the DataSource of a ListControl.
     /// `valueDisplayProperties` should be a quotation of a function that takes an 'a and returns a tuple of the
@@ -306,41 +350,3 @@ type BindPartExtensions =
     [<Extension>]
     static member toDataSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromItems control)
-
-
-[<Extension>]
-type FormExtensions =
-    [<Extension>]
-    static member Show (form: 'Form, start: 'Form -> ISignal<_> * IDisposable) =
-        let modelSignal, subscription = start form
-        (form :> Form).Closed.Add (fun _ -> subscription.Dispose())
-        form.Show()
-        modelSignal
-
-    [<Extension>]
-    static member ShowDialog (form: 'Form, start: 'Form -> ISignal<_> * IDisposable) =
-        let modelSignal, subscription = start form
-        try
-            (form :> Form).ShowDialog() |> ignore
-            modelSignal.Value
-        finally subscription.Dispose()
-
-    [<Extension>]
-    static member Run (form, start) =
-        let modelSignal = form.Show(start)
-        Application.Run(form :> Form)
-        modelSignal.Value
-
-[<Extension>]
-type FormCsExtensions =
-    [<Extension>]
-    static member Show (form, start: Func<_,_>) =
-        FormExtensions.Show(form, start.Invoke)
-
-    [<Extension>]
-    static member ShowDialog (form, start: Func<_,_>) =
-        FormExtensions.ShowDialog(form, start.Invoke)
-
-    [<Extension>]
-    static member Run (form, start: Func<_,_>) =
-        FormExtensions.Run(form, start.Invoke)
