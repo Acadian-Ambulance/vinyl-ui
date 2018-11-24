@@ -196,7 +196,7 @@ let private dispatcher (close: unit -> unit) = function
     | Save -> Sync (save close)
     | Closing cancel -> Sync (closing cancel)
 
-// Start function for the Edit window to pass into Run, Show, or ShowDialog.
+// Start function to pass into Run, Show, or ShowDialog for the Edit window.
 let start groups (contact: Contact option) (view: View) =
     // Create our initial state
     let model =

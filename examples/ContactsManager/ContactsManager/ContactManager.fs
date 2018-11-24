@@ -120,7 +120,7 @@ let private dispatcher editContact saveContacts = function
     | EditContact c -> Sync (edit editContact saveContacts (Some c))
     | DeleteContact c -> Sync (delete saveContacts c)
 
-// Start function for the Manager window to pass into Run, Show, or ShowDialog.
+// Start function to pass into Run, Show, or ShowDialog for the Manager window.
 let start editContact saveContacts contacts (view: View) =
     // Define the initial state
     let model = {
