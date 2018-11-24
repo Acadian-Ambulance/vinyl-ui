@@ -1,0 +1,36 @@
+﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Contact Manager" Width="800" Height="600">
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Margin="0,0,10,0" Grid.Column="0">
+            <StackPanel.Resources>
+                <Style TargetType="{x:Type Button}">
+                    <Setter Property="Width" Value="100"/>
+                    <Setter Property="Height" Value="25"/>
+                    <Setter Property="Margin" Value="0,0,0,10"/>
+                </Style>
+                <Style TargetType="{x:Type TextBlock}">
+                    <Setter Property="Margin" Value="0,0,0,10"/>
+                </Style>
+            </StackPanel.Resources>
+            <Button Name="CreateButton" Content="New Contact" Margin="0,0,0,20"/>
+            <Button Name="EditButton" Content="Edit"/>
+            <Button Name="DeleteButton" Content="Delete" Margin="0,0,0,20"/>
+
+            <TextBlock Name="NameDisplay" Width="150" FontWeight="Bold" TextWrapping="WrapWithOverflow"/>
+            <TextBlock Name="NumbersDisplay"/>
+        </StackPanel>
+        <DataGrid Name="ContactGrid" Grid.Column="1" Margin="0,0,0,0" AutoGenerateColumns="false" IsReadOnly="True" SelectionMode="Single">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="First Name" Binding="{Binding FirstName}"/>
+                <DataGridTextColumn Header="Last Name" Binding="{Binding LastName}"/>
+                <DataGridTextColumn Header="Group" Binding="{Binding Group}"/>
+                <DataGridTextColumn Header="Primary Number" Binding="{Binding PrimaryNumber}"/>
+                <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="1*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</Window>

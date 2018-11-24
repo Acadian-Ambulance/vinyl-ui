@@ -1,0 +1,8 @@
+source https://www.nuget.org/api/v2/
+framework: net451
+redirects: on
+
+nuget System.Reactive ~> 3.1
+nuget FSharp.Control.AsyncSeq ~> 2.0.20
+nuget FSharp.Quotations.Evaluator ~> 1.1
+nuget FsXaml.Wpf

@@ -1,0 +1,383 @@
+﻿namespace VinylUI.Wpf
+
+open System
+open System.Collections
+open System.Collections.Generic
+open System.Windows
+open System.Windows.Controls
+open System.Windows.Controls.Primitives
+open System.Windows.Data
+open System.Runtime.CompilerServices
+open Microsoft.FSharp.Quotations
+open VinylUI
+
+[<Extension>]
+type WindowExtensions =
+    /// Opens a window with VinylUI and returns immediately, without waiting for the window to be closed.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
+    [<Extension>]
+    static member Show (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        (window :> Window).Closed.Add (fun _ -> subscription.Dispose())
+        window.Show()
+        modelSignal
+
+    /// Opens a window with VinylUI and returns when the window is closed.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
+    [<Extension>]
+    static member ShowDialog (window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        use x = subscription
+        (window :> Window).ShowDialog() |> ignore
+        modelSignal.Value
+
+    /// Starts a WPF application with VinylUI and opens the given window.
+    /// VinylUI.Framework.start should be used with partial application to supply the start function.
+    [<Extension>]
+    static member Run (app: Application, window: 'Window, start: 'Window -> ISignal<_> * IDisposable) =
+        let modelSignal, subscription = start window
+        use x = subscription
+        app.Run(window) |> ignore
+        modelSignal.Value
+
+type FSharpValueConverter() =
+    /// WPF value converter to convert to and from FSharp types, such as option.
+    interface IValueConverter with
+        member this.Convert (value, _, _, _) =
+            if value = null then value
+            else
+                let t = value.GetType()
+                if t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<option<_>> then
+                    t.GetProperty("Value").GetValue(value)
+                else value
+
+        member this.ConvertBack (value, targetType, _, _) =
+            if value = null then null
+            else
+                let optType =
+                    if targetType.ContainsGenericParameters then
+                        targetType.MakeGenericType([|value.GetType()|])
+                    else targetType
+                optType.GetConstructors().[0].Invoke([|value|])
+
+[<AutoOpen>]
+module ControlExtensions =
+    let private addGridConverter (column: DataGridColumn) =
+        match column with
+        | :? DataGridTextColumn as c ->
+            match c.Binding with
+            | :? Data.Binding as b when b.Converter = null ->
+                b.Converter <- FSharpValueConverter()
+            | _ -> ()
+        | _ -> ()
+
+    type DataGrid with
+        /// Adds binding converters to handle option types for the current columns and auto-generated columns.
+        member this.AddFSharpConverterToColumns() =
+            this.Columns |> Seq.iter addGridConverter
+            this.AutoGeneratingColumn.Add <| fun e ->
+                let t = e.PropertyType
+                if t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<option<_>> then
+                    addGridConverter e.Column
+
+module WpfBinding =
+    open System.Reflection
+
+    type WpfBindingMode = System.Windows.Data.BindingMode
+
+    let getSourceUpdateMode updateMode =
+        match updateMode with
+        | OnValidation -> UpdateSourceTrigger.LostFocus
+        | OnChange -> UpdateSourceTrigger.PropertyChanged
+
+    let getUpdateModes bindingMode =
+        let getSourceMode = function
+            | Some m -> getSourceUpdateMode m
+            | None -> UpdateSourceTrigger.Default
+        match bindingMode with
+        | TwoWay sm -> (WpfBindingMode.TwoWay, getSourceMode sm)
+        | OneWayToModel sm -> (WpfBindingMode.OneWayToSource, getSourceMode sm)
+        | OneWayToView -> (WpfBindingMode.OneWay, UpdateSourceTrigger.Explicit)
+
+    let getDependencyProperty (property: PropertyInfo) =
+        let depFieldName = property.Name + "Property"
+        let isDepProp typ = typeof<DependencyProperty>.IsAssignableFrom(typ)
+        let field = property.DeclaringType.GetField(depFieldName, BindingFlags.Public ||| BindingFlags.Static)
+        if field <> null && isDepProp field.FieldType then
+            field.GetValue(null) :?> DependencyProperty
+        else
+            let prop = property.DeclaringType.GetProperty(depFieldName, BindingFlags.Public ||| BindingFlags.Static)
+            if prop <> null && isDepProp prop.PropertyType then
+                prop.GetValue(null) :?> DependencyProperty
+            else
+                failwithf "Could not find dependency property %s on type %s" depFieldName property.DeclaringType.FullName
+
+    let createBinding (bi: BindingInfo<Control, 'c, 's>) =
+        let mode, sourceUpdate = getUpdateModes bi.BindingMode
+        let binding = Binding()
+        binding.Source <- bi.Source
+        binding.Path <- PropertyPath bi.SourceProperty.Name
+        binding.Mode <- mode
+        binding.UpdateSourceTrigger <- sourceUpdate
+        if bi.ConvertToControl.IsSome || bi.ConvertToSource.IsSome then
+            let converter = function
+                | Some f -> unbox >> f >> box
+                | None -> id
+            let toControl = converter bi.ConvertToControl
+            let toSource = converter bi.ConvertToSource
+            binding.Converter <-
+                { new IValueConverter with
+                  member this.Convert (value, _, _, _) = toControl value
+                  member this.ConvertBack (value, _, _, _) = toSource value
+                }
+        if mode = WpfBindingMode.OneWayToSource then
+            // workaround for WPF bug where one-way-to-source resets control value
+            binding.FallbackValue <- bi.ControlProperty.GetValue bi.Control
+        bi.Control.SetBinding(getDependencyProperty bi.ControlProperty, binding) |> ignore
+        binding
+
+    let bindControl bindingInfo = createBinding bindingInfo |> ignore
+
+    type RawValidationRule() =
+        inherit ValidationRule(ValidationStep.RawProposedValue, false)
+        override this.Validate (_, _) = ValidationResult(true, null)
+
+    let validationConvert toSource toView (bindingInfo: BindingInfo<Control, _, _>) =
+        // Workaround to preserve control value when it is converted to an Error.
+        // Control setters pass values through the converter both ways, which we can't allow to happen since conversion
+        // to an Error discards the original input.
+        let mutable prevValue = None
+        let toSource x =
+            prevValue <- Some x
+            toSource x
+        let errorValue () =
+            let v = prevValue
+            prevValue <- None
+            v
+
+        let bindExpr = lazy bindingInfo.Control.GetBindingExpression(getDependencyProperty bindingInfo.ControlProperty)
+        let rule = RawValidationRule()
+        let onError = function
+            | Some e ->
+                let error = ValidationError(rule, bindExpr.Value, e, null)
+                Validation.MarkInvalid(bindExpr.Value, error)
+            | None -> Validation.ClearInvalid(bindExpr.Value)
+        CommonBinding.validationConvert onError toSource toView (Some errorValue) bindingInfo
+
+
+/// Functions for creating bindings
+module Bind =
+    /// Start the creation of a binding on a control property
+    let view controlProperty = CommonBinding.controlPart<Control, 'View> controlProperty
+
+/// Helpers for setting the ItemsSource of list controls
+module ListSource =
+    open VinylUI.BindingPatterns
+
+    let private setSource (control: Selector) (source: 'a seq) valueMember displayMember =
+        let selected = control.SelectedValue
+        control.SelectedValuePath <- valueMember
+        control.DisplayMemberPath <- displayMember
+        control.ItemsSource <- Seq.toArray source
+
+        match selected with
+        | null -> control.SelectedIndex <- -1
+        | s -> control.SelectedValue <- s
+
+    /// Set the ItemsSource to a sequence of objects.
+    /// `valueDisplayProperties` should be a quotation of a function that takes an item and returns a tuple of the
+    /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
+    /// The current selection will be preserved when possible.
+    let fromSeq control (valueDisplayProperties: Expr<'a -> (_ * _)>) (source: 'a seq) =
+        let (valueMember, displayMember) =
+            match valueDisplayProperties with
+            | PropertyTupleSelector (valueProp, displayProp) -> (valueProp.Name, displayProp.Name)
+            | _ -> failwith (sprintf "Expected an expression that selects a tuple of the value property and display property, but was given %A" valueDisplayProperties)
+        setSource control source valueMember displayMember
+
+    /// Set the ItemsSource to the contents of a dictionary.
+    /// The keys will be the control items' values and the dictionary values will be the items' text.
+    /// The current selection will be preserved when possible.
+    let fromDict control (source: IDictionary<'value, 'display>) =
+        setSource control source "Key" "Value"
+
+    /// Set the ItemsSource to a sequence of value * display pairs.
+    /// The current selection will be preserved when possible.
+    let fromPairs control (source: ('value * 'display) seq) = fromDict control (dict source)
+
+    /// Set the ItemsSource.
+    /// The current selection will be preserved when possible.
+    let fromItems (control: Selector) source =
+        let selected = control.SelectedItem
+        control.ItemsSource <- source
+        match selected with
+        | null -> control.SelectedIndex <- -1
+        | s -> control.SelectedItem <- s
+
+[<Extension>]
+type BindPartExtensions =
+    // two way
+
+    /// Create a two-way binding between control and model properties of the same type.
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode)
+        |> CommonBinding.createProxy WpfBinding.bindControl
+
+    /// Create a two-way binding between control and model properties of different types given the conversions between them.
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, _>, modelProperty, toModel, toView, ?sourceUpdateMode) =
+        { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode) with
+            ConvertToSource = Some toModel
+            ConvertToControl = Some toView
+        } |> CommonBinding.createProxy WpfBinding.bindControl
+
+    /// Create a two-way binding, automatically converting between option<'a> and 'a.
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, Option.ofObj, Option.toObj, ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a two-way binding, automatically converting between option<'a> and Nullable<'a>.
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, Option.ofNullable, Option.toNullable, ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a two-way binding between an obj control property and a model property, automatically boxing and unboxing.
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, obj>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, BindingConvert.objToOption<'a> (), BindingConvert.objFromOption (), ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a two-way binding, automatically converting between string and string option, where null and whitespace from the view becomes None on the model
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, BindingConvert.toStringOption, BindingConvert.fromStringOption, ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a two-way binding between an IEnumerable control property and a model property.
+    [<Extension>]
+    static member toModel (view: BindViewPart<Control, IEnumerable>, modelProperty: Expr<'a seq>, ?sourceUpdateMode) =
+        view.toModel(modelProperty, Seq.cast<'a>, (fun s -> s :> IEnumerable), ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a two-way binding between control and model properties of different types with validation.
+    [<Extension>]
+    static member toModelResult (view: BindViewPart<Control, _>, modelProperty, toModelValidator, toView, ?sourceUpdateMode) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (TwoWay sourceUpdateMode)
+        |> WpfBinding.validationConvert toModelValidator (Some toView)
+        |> CommonBinding.createProxy WpfBinding.bindControl
+
+    /// Create a two-way binding between control and model properties of the same type with validation.
+    [<Extension>]
+    static member toModelResult (view: BindViewPart<Control, _>, modelProperty, toModelValidator, ?sourceUpdateMode) =
+        view.toModelResult(modelProperty, toModelValidator, id, ?sourceUpdateMode = sourceUpdateMode)
+
+    // one way to model
+
+    /// Create a one-way binding from a control property to a model property of the same type.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a>, ?sourceUpdateMode) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode)
+        |> CommonBinding.createProxy WpfBinding.bindControl
+
+    /// Create a one-way binding from a control property to a model property of a different type given the conversion.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, _>, modelProperty, toModel, ?sourceUpdateMode) =
+        { CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode) with
+            ConvertToSource = Some toModel
+        } |> CommonBinding.createProxy WpfBinding.bindControl
+
+    /// Create a one-way binding from a nullable reference control property to an option model property, automatically handling the conversion.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, 'a>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
+        view.toModelOneWay(modelProperty, Option.ofObj, ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a one-way binding from a nullable control property to an option model property, automatically handling the conversion.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, Nullable<'a>>, modelProperty: Expr<'a option>, ?sourceUpdateMode) =
+        view.toModelOneWay(modelProperty, Option.ofNullable, ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a one-way binding, from a string control property to a string option model property, 
+    /// automatically handling the conversion where null and whitespace from the view becomes None on the model.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, string>, modelProperty: Expr<string option>, ?sourceUpdateMode) =
+        view.toModelOneWay(modelProperty, BindingConvert.toStringOption, ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a one-way binding from an obj control property to a model property, automatically handling the unboxing.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, obj>, modelProperty: Expr<_>, ?sourceUpdateMode) =
+        view.toModelOneWay(modelProperty, BindingConvert.objToOption (), ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a one-way binding from an IEnumerable control property to a model property.
+    [<Extension>]
+    static member toModelOneWay (view: BindViewPart<Control, IEnumerable>, modelProperty: Expr<'a seq>, ?sourceUpdateMode) =
+        view.toModelOneWay(modelProperty, Seq.cast<'a>, ?sourceUpdateMode = sourceUpdateMode)
+
+    /// Create a one-way binding from a control property to a model property of a different type with validation.
+    [<Extension>]
+    static member toModelResultOneWay (view: BindViewPart<Control, _>, modelProperty, toModelValidator, ?sourceUpdateMode) =
+        CommonBinding.fromParts view (CommonBinding.modelPart modelProperty) (OneWayToModel sourceUpdateMode)
+        |> WpfBinding.validationConvert toModelValidator None
+        |> CommonBinding.createProxy WpfBinding.bindControl
+
+    // one way to view
+
+    /// Create a one-way binding from a model property to a control property of the same type.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<'a>, viewProperty: Expr<'a>) =
+        CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView
+        |> CommonBinding.createProxy WpfBinding.bindControl
+
+    /// Create a one-way binding from a model property to a control property of a different type given the conversion.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<_>, viewProperty, toView) =
+        { CommonBinding.fromParts (CommonBinding.controlPart viewProperty) source OneWayToView with
+            ConvertToControl = Some toView
+        } |> CommonBinding.createProxy WpfBinding.bindControl
+
+    /// Create a one-way binding from a option model property to an nullable reference control property, automatically handling the conversion.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<'a>) =
+        source.toViewOneWay(viewProperty, Option.toObj)
+
+    /// Create a one-way binding from a option model property to an nullable control property, automatically handling the conversion.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<'a option>, viewProperty: Expr<Nullable<'a>>) =
+        source.toViewOneWay(viewProperty, Option.toNullable)
+
+    /// Create a one-way binding, from a string option model property to a string control property, 
+    /// automatically handling the conversion where None on the model becomes empty string on the view.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<string option>, viewProperty: Expr<string>) =
+        source.toViewOneWay(viewProperty, BindingConvert.fromStringOption)
+
+    /// Create a one-way binding from a model property to an obj control property, automatically handling the boxing.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<_>, viewProperty: Expr<obj>) =
+        source.toViewOneWay(viewProperty, BindingConvert.objFromOption ())
+
+    /// Create a one-way binding from a model property to an IEnumerable control property.
+    [<Extension>]
+    static member toViewOneWay (source: BindSourcePart<_>, viewProperty: Expr<IEnumerable>) =
+        source.toViewOneWay(viewProperty, (fun s -> upcast s))
+
+    // model to callback
+
+    /// Create a one-way binding from a model property of type 'a seq to the ItemsSource of a list control.
+    /// `valueDisplayProperties` should be a quotation of a function that takes an 'a and returns a tuple of the
+    /// value then display properties, e.g. <@ fun x -> x.Id, x.Name @>
+    [<Extension>]
+    static member toItemsSource (source: BindSourcePart<_>, control, valueDisplayProperties) =
+        source.toFunc(ListSource.fromSeq control valueDisplayProperties)
+
+    /// Create a one-way binding from an model property of type IDictionary<,> to the ItemsSource of a list control.
+    [<Extension>]
+    static member toItemsSource (source: BindSourcePart<IDictionary<'value, 'display>>, control) =
+        source.toFunc(ListSource.fromDict control)
+
+    /// Create a one-way binding from a model property of type ('a * 'b) seq to the ItemsSource of a list control.
+    [<Extension>]
+    static member toItemsSource (source: BindSourcePart<_>, control) =
+        source.toFunc(ListSource.fromPairs control)
+
+    /// Create a one-way binding from a model property of type 'a seq to the ItemsSource of a list control.
+    [<Extension>]
+    static member toItemsSource (source: BindSourcePart<_>, control) =
+        source.toFunc(ListSource.fromItems control)

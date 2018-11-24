@@ -21,6 +21,7 @@ let model = {
     Name = "Dan"
     NickName = Some "D"
     Age = Some 30
+    AgeResult = Ok 30
     Books = books
     BookObjs = bookObjs
     BookIndex = -1
@@ -75,8 +76,11 @@ let updateControl (cp: BindViewPart<Control, _>) =
     let notify = typedefof<Control>.GetMethod("NotifyValidating", BindingFlags.Instance ||| BindingFlags.NonPublic)
     notify.Invoke(cp.Control, null) |> ignore
 
-let testViewToModel sourceUpdate = testViewToModel updateControl sourceUpdate
-let testNonViewToModel viewExpr = testNonViewToModel updateControl viewExpr
+let testViewToModel sourceUpdate viewExpr startVal newVal expectedVal =
+    testViewToModel updateControl sourceUpdate viewExpr startVal newVal expectedVal
+
+let testNonViewToModel viewExpr startVal newVal =
+    testNonViewToModel updateControl viewExpr startVal newVal
 
 let sourceUpdateModes = [ OnValidation; OnChange ]
 
@@ -168,6 +172,30 @@ let ``Bind obj to ref type option two-way`` sourceUpdate =
     binding |> testModelToView viewExpr (model.NickName |> Option.toObj |> box) (Some "J") (box "J")
     binding |> testViewToModel sourceUpdate viewExpr model.NickName (box "M") (Some "M")
 
+[<TestCaseSource("sourceUpdateModes")>]
+let ``Bind string to int two-way with validation`` sourceUpdate =
+    use form = new FakeForm()
+    let viewExpr = <@ form.TextBox.Text @>
+    let parseError = "must be a valid integer"
+    let nonPositiveError = "must be positive"
+    let validator s =
+        match System.Int32.TryParse(s) with
+        | true, i when i > 0 -> Ok i
+        | true, _ -> Error nonPositiveError
+        | false, _ -> Error parseError
+    use errorProvider = new ErrorProvider()
+    let binding = Bind.view(viewExpr).toModelResult(<@ model.AgeResult @>, validator, string, errorProvider, sourceUpdate)
+    binding.ModelProperty |> shouldEqual Model.AgeResultProperty
+    let res r : Result<int, string> = r
+    binding |> testModelToView viewExpr "30" (Ok 7 |> res) "7"
+    binding |> testModelToView viewExpr "7" (Error "test" |> res) "7"
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "abc" (Error parseError)
+    errorProvider.GetError form.TextBox |> shouldEqual parseError
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "0" (Error nonPositiveError)
+    errorProvider.GetError form.TextBox |> shouldEqual nonPositiveError
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "7" (Ok 7)
+    errorProvider.GetError form.TextBox |> shouldEqual ""
+
 // one way to model binding
 
 [<TestCaseSource("sourceUpdateModes")>]
@@ -240,6 +268,28 @@ let ``Bind obj to ref type option one way to model`` sourceUpdate =
     let binding = Bind.view(viewExpr).toModelOneWay(<@ model.NickName @>, sourceUpdate)
     binding |> testNonModelToView viewExpr (box "") (Some "J")
     binding |> testViewToModel sourceUpdate viewExpr model.NickName (box "M") (Some "M")
+
+[<TestCaseSource("sourceUpdateModes")>]
+let ``Bind string to int one way to model with validation`` sourceUpdate =
+    use form = new FakeForm()
+    let viewExpr = <@ form.TextBox.Text @>
+    let parseError = "must be a valid integer"
+    let nonPositiveError = "must be positive"
+    let validator s =
+        match System.Int32.TryParse(s) with
+        | true, i when i > 0 -> Ok i
+        | true, _ -> Error nonPositiveError
+        | false, _ -> Error parseError
+    use errorProvider = new ErrorProvider()
+    let binding = Bind.view(viewExpr).toModelResultOneWay(<@ model.AgeResult @>, validator, errorProvider, sourceUpdate)
+    binding.ModelProperty |> shouldEqual Model.AgeResultProperty
+    binding |> testNonModelToView viewExpr "" (Ok 7)
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "abc" (Error parseError)
+    errorProvider.GetError form.TextBox |> shouldEqual parseError
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "0" (Error nonPositiveError)
+    errorProvider.GetError form.TextBox |> shouldEqual nonPositiveError
+    binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "7" (Ok 7)
+    errorProvider.GetError form.TextBox |> shouldEqual ""
 
 // one way to view binding
 
@@ -339,22 +389,46 @@ let ``Bind model to data source`` () =
     let binding = Bind.model(<@ model.Books @>).toDataSource(form.ListBox, <@ fun b -> b.Id, b.Name @>)
     binding.ModelProperty |> shouldEqual Model.BooksProperty
     getList () |> shouldEqual model.Books
-    form.ListBox.SelectedIndex <- 0
-    form.ListBox.SelectedItem |> unbox |> shouldEqual model.Books.[0]
-    form.ListBox.SelectedValue |> unbox |> shouldEqual model.Books.[0].Id
-    form.ListBox.Text |> shouldEqual model.Books.[0].Name
+    form.ListBox.SelectedIndex |> shouldEqual -1
 
-    let newList = [ { Id = 99; Name = "Dependency Injection" } ]
+    form.ListBox.SelectedIndex <- 0
+    form.ListBox.SelectedItem |> unbox |> shouldEqual books.[0]
+    form.ListBox.SelectedValue |> unbox |> shouldEqual books.[0].Id
+    form.ListBox.Text |> shouldEqual books.[0].Name
+
+    let newList = [ { Id = 99; Name = "Dependency Injection" }; books.[0] ]
     binding.SetView (box newList)
     getList () |> shouldEqual newList
 
-// helper tests
+    form.ListBox.SelectedIndex |> shouldEqual 1
+    form.ListBox.SelectedItem |> unbox |> shouldEqual books.[0]
 
 [<Test>]
-let ``getObjConverter for record option type handles nulls`` () =
-    let converter = BindingConverters.getObjConverter<Book option> ()
-    converter.ToSource null |> shouldEqual None
-    converter.ToControl None |> shouldEqual null
+let ``fromSeq preserves selection`` () =
+    use form = new FakeForm()
+    let setSource : Book seq -> unit = ListSource.fromSeq form.ListBox <@ fun b -> b.Id, b.Name @>
+    setSource books
+    form.ListBox.SelectedIndex |> shouldEqual -1
+
+    form.ListBox.SelectedIndex <- 0
+    setSource (List.rev books)
+    form.ListBox.SelectedIndex |> shouldEqual 1
+
+    setSource [ books.[1] ]
+    form.ListBox.SelectedIndex |> shouldEqual -1
+
+[<Test>]
+let ``fromItems preserves selection`` () =
+    use form = new FakeForm()
+    ListSource.fromItems form.ListBox [1; 2; 3]
+    form.ListBox.SelectedIndex |> shouldEqual -1
+
+    form.ListBox.SelectedIndex <- 0
+    ListSource.fromItems form.ListBox [3; 1; 2]
+    form.ListBox.SelectedIndex |> shouldEqual 1
+
+    ListSource.fromItems form.ListBox [3]
+    form.ListBox.SelectedIndex |> shouldEqual -1
 
 type ListControls = ListType | ComboType
 
@@ -403,3 +477,12 @@ let ``Model to view correctly updates SelectedValue to null`` controlType =
 
     binding |> testModelToView viewExpr (model.BookValue |> Option.toNullable |> box) (Some bookObjs.[1].Id) (bookObjs.[1].Id |> box)
     binding |> testModelToView viewExpr (bookObjs.[1].Id |> box) None (null |> box)
+
+// helper tests
+
+[<Test>]
+let ``BindingConvert option converters for record option type handles nulls`` () =
+    let toOption = BindingConvert.objToOption<Book option> ()
+    let fromOption = BindingConvert.objFromOption<Book option> ()
+    toOption null |> shouldEqual None
+    fromOption None |> shouldEqual null

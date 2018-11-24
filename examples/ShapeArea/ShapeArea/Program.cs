@@ -11,9 +11,7 @@ namespace ShapeArea {
         static void Main() {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            var form = new ShapeAreaForm();
-            form.Show(FormLogic.start(form));
-            Application.Run(form);
+            new ShapeAreaForm().Run(FormLogic.start);
         }
     }
 }

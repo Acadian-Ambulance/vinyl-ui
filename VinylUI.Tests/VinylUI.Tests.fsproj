@@ -59,14 +59,20 @@
     <Compile Include="FrameworkTests.fs" />
     <Compile Include="BindingTestUtil.fs" />
     <Compile Include="WinFormsTests.fs" />
+    <Compile Include="WpfTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="UIAutomationTypes" />
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VinylUI\VinylUI.fsproj">
