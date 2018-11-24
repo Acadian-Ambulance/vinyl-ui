@@ -49,7 +49,7 @@ type View = FsXaml.XAML<"ContactEditWindow.xaml">
 
 /// View binder function where we create bindings between window controls and model properties.
 /// We also do other view setup here.
-let binder (view: View) model =
+let private binder (view: View) model =
     // Set the grid source to our mutable number list. We don't need a binding since we're using mutation.
     view.NumberGrid.ItemsSource <- model.Numbers
 
@@ -110,7 +110,7 @@ let binder (view: View) model =
     ]
 
 /// Maps events from view controls to the Events we defined
-let events (view: View) =
+let private events (view: View) =
     // Create the list of event observables
     [
         // Map button clicks to corresponding events
@@ -123,7 +123,7 @@ let events (view: View) =
     ]
 
 // Move number handler
-let moveNumber dir model =
+let private moveNumber dir model =
     match model.SelectedNumberIndex with
     // If a number was selected...
     | Some index ->
@@ -139,7 +139,7 @@ let moveNumber dir model =
     | None -> model
 
 // Validate the info in the model into a Result of either a valid contact or an error message
-let validate model =
+let private validate model =
     match model.FirstName, model.LastName with
     | Ok first, Ok last ->
         Ok {
@@ -152,7 +152,7 @@ let validate model =
     | Error e, _ | _, Error e -> Error e
 
 // Save event handler
-let save close model =
+let private save close model =
     match validate model with
     | Ok contact ->
         // If the model has a valid contact, close the window
@@ -172,7 +172,7 @@ let save close model =
         model
 
 // Closing event handler
-let closing cancel model =
+let private closing cancel model =
     match model.Original, validate model with
     // If we are editing a contact and the model has the same information as the original, don't do anything
     | Some orig, Ok newContact when newContact = orig -> ()
@@ -190,7 +190,7 @@ let closing cancel model =
 // Event dispatcher to delegate events to the handlers above.
 // Each handler is a function that takes a model and returns a new model.
 // We use partial application to provide dependencies and other input.
-let dispatcher (close: unit -> unit) = function
+let private dispatcher (close: unit -> unit) = function
     | MoveNumberUp -> Sync (moveNumber -1)
     | MoveNumberDown -> Sync (moveNumber 1)
     | Save -> Sync (save close)

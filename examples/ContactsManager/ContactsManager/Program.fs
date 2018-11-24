@@ -41,7 +41,7 @@ let save fileName contacts =
     File.WriteAllText(fileName, json)
 
 /// Load a list of contacts from the given file path if it exists.
-/// If the file does not exist, return the example contacts
+/// If the file does not exist, return the example contacts.
 let load fileName =
     if File.Exists fileName then
         File.ReadAllText fileName

@@ -22,7 +22,7 @@ type View = FsXaml.XAML<"ContactManagerWindow.xaml">
 
 /// View binder function where we create bindings between window controls and model properties.
 /// We also do other view setup here.
-let binder (view: View) model =
+let private binder (view: View) model =
     // Call a VinylUI extension to add FSharp type converters (to handle options)
     view.ContactGrid.AddFSharpConverterToColumns()
 
@@ -51,7 +51,7 @@ let binder (view: View) model =
     ]
 
 /// Maps events from view controls to the Events we defined
-let events (view: View) =
+let private events (view: View) =
     // Helper function that returns the currently selected contact
     let selected _ = view.ContactGrid.SelectedItem |> Option.ofObj |> Option.map unbox<Contact>
 
@@ -65,7 +65,7 @@ let events (view: View) =
     ]
 
 // Edit event handler
-let edit editContact saveContacts contact model =
+let private edit editContact saveContacts contact model =
     // Determine the list of currently used groups for the user to choose from
     let groups = model.Contacts |> List.choose (fun c -> c.Group) |> List.distinct |> List.sort
 
@@ -92,7 +92,7 @@ let edit editContact saveContacts contact model =
         model
 
 // Delete event handler
-let delete saveContacts (contact: Contact) model =
+let private delete saveContacts (contact: Contact) model =
     // Prompt the user for delete confirmation
     let confirmed =
         MessageBox.Show(sprintf "Are you sure you want to delete %s from your contact list?" contact.FullName,
@@ -115,7 +115,7 @@ let delete saveContacts (contact: Contact) model =
 // Event dispatcher to delegate events to the handlers above.
 // Each handler is a function that takes a model and returns a new model.
 // We use partial application to provide dependencies and other input.
-let dispatcher editContact saveContacts = function
+let private dispatcher editContact saveContacts = function
     | CreateContact -> Sync (edit editContact saveContacts None)
     | EditContact c -> Sync (edit editContact saveContacts (Some c))
     | DeleteContact c -> Sync (delete saveContacts c)
