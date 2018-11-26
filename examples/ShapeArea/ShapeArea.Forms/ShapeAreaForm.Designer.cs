@@ -1,4 +1,4 @@
-﻿namespace ShapeArea {
+﻿namespace ShapeArea.Forms {
     partial class ShapeAreaForm {
         /// <summary>
         /// Required designer variable.

@@ -1,7 +1,7 @@
 ﻿using System.Windows.Forms;
 
-namespace ShapeArea {
-    public partial class ShapeAreaForm : Form, FormLogic.IShapeAreaForm {
+namespace ShapeArea.Forms {
+    public partial class ShapeAreaForm : Form {
         public Control WidthInput => width;
         public Control HeightInput => height;
         public Control AreaDisplay => area;

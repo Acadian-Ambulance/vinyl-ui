@@ -20,6 +20,7 @@ type Model = {
     Name: string
     NickName: string option
     Age: int option
+    AgeResult: Result<int, string>
     Books: Book list
     BookObjs: BookObj list
     BookIndex: int
@@ -29,6 +30,8 @@ type Model = {
 with
     static member IdProperty = typedefof<Model>.GetProperty("Id")
     static member NameProperty = typedefof<Model>.GetProperty("Name")
+    static member AgeProperty = typedefof<Model>.GetProperty("Age")
+    static member AgeResultProperty = typedefof<Model>.GetProperty("AgeResult")
     static member BooksProperty = typedefof<Model>.GetProperty("Books")
 
 type InpcControl<'a when 'a: equality>(initVal: 'a) =
