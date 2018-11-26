@@ -1,9 +1,9 @@
 ﻿module FormLogic
 
 open System
-open System.Windows.Forms
 open VinylUI
 open VinylUI.WinForms
+open ShapeArea.Forms
 
 /// Defines the Shape types
 type Shape = Rectangle | Ellipse
@@ -21,17 +21,8 @@ type Events =
     | DimensionChanged
     | ShapeChanged of Shape
 
-/// Interface for the Windows Form. We need to access the form through an interface since this project is a dependency
-/// of the main C# application where the Form is defined.
-type IShapeAreaForm =
-    abstract WidthInput: Control
-    abstract HeightInput: Control
-    abstract AreaDisplay: Control
-    abstract RectangleButton: RadioButton
-    abstract EllipseButton: RadioButton
-
 /// View binder function where we create bindings between form controls and model properties.
-let binder (form: IShapeAreaForm) model =
+let binder (form: ShapeAreaForm) model =
     // Helper function for width and height bindings below
     let parseDecimal s =
         match Decimal.TryParse s with
@@ -55,7 +46,7 @@ let binder (form: IShapeAreaForm) model =
     ]
 
 /// Maps events from view controls to the Events we defined
-let events (form: IShapeAreaForm) =
+let events (form: ShapeAreaForm) =
     // Create the list of event observables
     [
         // Map changes in the width and height to the DimensionChanged event
@@ -96,7 +87,7 @@ let dispatcher = function
     | ShapeChanged s -> Sync (shapeChanged s)
 
 // Start function to pass into Run, Show, or ShowDialog for the form
-let start (form: IShapeAreaForm) =
+let start (form: ShapeAreaForm) =
     // Define the initial state
     let model = {
         Width = None

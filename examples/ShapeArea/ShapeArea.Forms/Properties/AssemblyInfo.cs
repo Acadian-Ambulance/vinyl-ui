@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("ShapeArea")]
+[assembly: AssemblyTitle("ShapeArea.Forms")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("ShapeArea")]
+[assembly: AssemblyProduct("ShapeArea.Forms")]
 [assembly: AssemblyCopyright("Copyright ©  2018")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("80566b59-8397-4d0b-b004-3e9a5b70b21a")]
+[assembly: Guid("7589e52e-0012-43ed-bfec-3e0911a2ecad")]
 
 // Version information for an assembly consists of the following four values:
 //
