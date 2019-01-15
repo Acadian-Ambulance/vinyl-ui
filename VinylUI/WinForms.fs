@@ -346,7 +346,8 @@ type BindPartExtensions =
     static member toDataSource (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromPairs control)
 
-    /// Create a one-way binding from a model property of type 'a seq to the DataSource of a ListControl.
+    /// Create a one-way binding from a model property of type 'a seq to the DataSource of a ListControl without setting
+    /// value and display member.
     [<Extension>]
-    static member toDataSource (source: BindSourcePart<_>, control) =
+    static member toDataSourceDirect (source: BindSourcePart<_>, control) =
         source.toFunc(ListSource.fromItems control)
