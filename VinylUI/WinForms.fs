@@ -175,7 +175,8 @@ module ListSource =
 
     /// Set the DataSource to a sequence of value * display pairs.
     /// The current selection will be preserved when possible.
-    let fromPairs (control: ListControl) (source: ('value * 'display) seq) = fromDict control (dict source)
+    let fromPairs (control: ListControl) (source: ('value * 'display) seq) =
+        setSource control source "Item1" "Item2"
 
     /// Set the DataSource.
     /// The current selection will be preserved when possible.
