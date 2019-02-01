@@ -23,15 +23,15 @@ module Model =
             ctorParams.Value |> Seq.exists (equalIgnoreCase prop.Name)
         props |> Seq.filter (not << isCtorParam)
 
-    let changes (props: PropertyInfo seq) (original: 'a) (updated: 'a) =
-        props |> Seq.choose (fun p ->
-            match p.GetValue updated, p.GetValue original with
-            | upd, orig when upd <> orig -> Some (p, upd)
+    let changes (props: PropertyInfo seq) (prev: 'a) (current: 'a) =
+        props |> Seq.choose (fun prop ->
+            match prop.GetValue prev, prop.GetValue current with
+            | p, c when c <> p -> Some (prop, c)
             | _ -> None
         )
 
     let permute (model: 'Model) changes =
-        let t = typedefof<'Model>
+        let t = typeof<'Model>
         let ctor = t.GetConstructors().[0]
         let propNameIs name (prop: PropertyInfo) = equalIgnoreCase name prop.Name
         let props = t.GetProperties()
@@ -41,14 +41,16 @@ module Model =
             |> Array.map (fun param ->
                 match changes |> Seq.tryFind (fst >> propNameIs param.Name) with
                 | Some (_, newValue) -> box newValue
-                | None -> getCurrentValue param.Name)
+                | None -> getCurrentValue param.Name
+            )
         ctor.Invoke(args) :?> 'Model
 
     let updateView bindings changes =
         changes |> Seq.iter (fun (prop, value) ->
             bindings
             |> Seq.filter (fun b -> b.ModelProperty = prop)
-            |> Seq.iter (fun b -> b.SetView value))
+            |> Seq.iter (fun b -> b.SetView value)
+        )
 
 type ISignal<'a> =
     inherit IObservable<'a>
@@ -84,54 +86,61 @@ module Framework =
         let modelSubject = new BehaviorSubject<'Model>(initialModel) |> Signal
 
         // subscribe to control changes to update the model
-        let exceptRef a = Seq.filter (fun x -> not <| obj.ReferenceEquals(x, a))
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
-                let change = binding.ModelProperty, value
+                let change = (binding.ModelProperty, value)
                 let prevModel = modelSubject.Value
                 modelSubject.Value <- Model.permute modelSubject.Value [change]
                 let computedChanges = Model.changes computedProps prevModel modelSubject.Value |> Seq.toList
-                Model.updateView (bindings |> exceptRef binding) (change :: computedChanges)))
+                Model.updateView (bindings |> Seq.except [binding]) (change :: computedChanges)
+            )
+        )
 
         let eventList : IObservable<'Event> list = events view
         let eventStream = eventList.Merge()
 
-        let updateModel originalModel newModel =
-            let changes = newModel |> Model.changes props originalModel
+        let updateModel prevModel newModel =
+            let changes = newModel |> Model.changes props prevModel
             changes |> Model.updateView bindings
             modelSubject.Value <- Model.permute modelSubject.Value changes
+
+        let runSync handler =
+            let handle () = 
+                handler modelSubject.Value
+                |> updateModel modelSubject.Value
+            match errorHandler with
+            | None -> handle ()
+            | Some errorHandler ->
+                try handle()
+                with e -> errorHandler e
+
+        let runAsync handler =
+            let gui = SynchronizationContext.Current
+            Async.StartWithContinuations(
+                computation = (async {
+                    do! Async.SwitchToThreadPool()
+
+                    let mutable prevModel = modelSubject.Value
+                    do! handler prevModel |> AsyncSeq.iterAsync (fun newModel -> async {
+                        do! Async.SwitchToContext(gui)
+                        newModel |> updateModel prevModel
+                        prevModel <- newModel
+                        do! Async.SwitchToThreadPool()
+                    })
+
+                    do! Async.SwitchToContext(gui)
+                }),
+                continuation = id,
+                exceptionContinuation =
+                    (unwrapException >> (errorHandler |> Option.defaultValue defaultAsyncErrorHandler)),
+                cancellationContinuation = ignore
+            )
 
         let subscription =
             Observer.Create(fun event ->
                 match dispatcher event with
-                | Sync handler ->
-                    let handle () = 
-                        handler modelSubject.Value
-                        |> updateModel modelSubject.Value
-                    match errorHandler with
-                    | None -> handle ()
-                    | Some errorHandler ->
-                        try handle()
-                        with e -> errorHandler e
-                | Async handler ->
-                    let gui = SynchronizationContext.Current
-                    Async.StartWithContinuations(
-                        computation = (async {
-                            do! Async.SwitchToThreadPool()
-
-                            let mutable originalModel = modelSubject.Value
-                            do! handler originalModel |> AsyncSeq.iterAsync (fun newModel -> async {
-                                do! Async.SwitchToContext(gui)
-                                newModel |> updateModel originalModel
-                                originalModel <- newModel
-                                do! Async.SwitchToThreadPool()
-                            })
-
-                            do! Async.SwitchToContext(gui)
-                        }),
-                        continuation = id,
-                        exceptionContinuation = (unwrapException >> (errorHandler |> Option.defaultValue defaultAsyncErrorHandler)),
-                        cancellationContinuation = ignore)
+                | Sync handler -> runSync handler
+                | Async handler -> runAsync handler
             )
         #if DEBUG
             |> Observer.Checked
