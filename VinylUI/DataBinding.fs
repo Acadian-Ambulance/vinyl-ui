@@ -49,6 +49,7 @@ module BindingPatterns =
             Some (displayProp, valueProp)
         | _ -> None
 
+[<ReferenceEquality>]
 type Binding = {
     ModelProperty: PropertyInfo
     ViewChanged: IObservable<obj>
