@@ -54,6 +54,7 @@
     <None Include="paket.references" />
     <None Include="paket.template" />
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Model.fs" />
     <Compile Include="DataBinding.fs" />
     <Compile Include="Framework.fs" />
     <Compile Include="WinForms.fs" />

@@ -1,7 +1,6 @@
 ﻿module FrameworkTests
 
 open System.ComponentModel
-open System.Reflection
 open NUnit.Framework
 open FsUnitTyped
 open VinylUI
@@ -21,10 +20,10 @@ with
 let ``Model.permute creates new model with new property value``() =
     let original = { Name = "before value"; Score = 1 }
 
-    let newString = Model.permute original [MyModel.NameProperty, "after value"]
+    let newString = Model.permute original [| MyModel.NameProperty, box "after value" |]
     newString |> shouldEqual { original with Name = "after value" }
 
-    let newInt = Model.permute original [MyModel.ScoreProperty, 7]
+    let newInt = Model.permute original [| MyModel.ScoreProperty, box 7 |]
     newInt |> shouldEqual { original with Score = 7 }
 
 
@@ -55,18 +54,25 @@ type MyView() =
     member val NameLabel = Control<string>("")
     member val ScoreInput = Control<int>(0)
     member val ScoreDisplay = Control<string>("")
+    member val ScoreDisplay2 = Control<string>("")
 
 type MyEvents =
     | Add of int
     | Reset
 
-[<Test>]
-let ``Framework.start and full Sync exercise`` () =
+let initModel = { Name = "Bob"; Score = 1 }
+let view = MyView()
+
+let start multiBindCallback initModel =
     let binder (view: MyView) (model: MyModel) =
         [ Bind.viewInpc(<@ view.NameBox.Value @>).toModel(<@ model.Name @>)
           Bind.viewInpc(<@ view.ScoreInput.Value @>).toModelOneWay(<@ model.Score @>)
           Bind.model(<@ model.Display @>).toViewInpcOneWay(<@ view.ScoreDisplay.Value @>)
           Bind.model(<@ model.Name @>).toViewInpcOneWay(<@ view.NameLabel.Value @>)
+          Bind.modelMulti(<@ model.Name, model.Score, model.Display @>).toFunc(fun (name, score, disp) ->
+            multiBindCallback ()
+            view.ScoreDisplay2.Value <- sprintf "%s scored %i" name score
+          )
         ]
 
     let events (view: MyView) =
@@ -74,20 +80,24 @@ let ``Framework.start and full Sync exercise`` () =
           view.WasReset |> Observable.mapTo Reset
         ]
 
-    let initModel = { Name = "Bob"; Score = 1 }
-
     let dispatcher = function
         | Add i -> Sync (fun m -> { m with Score = m.Score + i })
         | Reset -> Sync (fun _ -> initModel)
 
-    let view = MyView()
-    let model, sub = Framework.start binder events dispatcher view initModel
+    Framework.start binder events dispatcher view initModel
+
+[<Test>]
+let ``Framework.start and full Sync exercise`` () =
+    let mutable multiBindCalls = 0
+    let callback () = multiBindCalls <- multiBindCalls + 1
+    let model, sub = start callback initModel
     use __ = sub
 
     // creating the bindings should have updated the view...
     view.NameBox.Value |> shouldEqual "Bob"
     view.NameLabel.Value |> shouldEqual "Bob"
     view.ScoreDisplay.Value |> shouldEqual "Bob: 1"
+    view.ScoreDisplay2.Value |> shouldEqual "Bob scored 1"
     // but one-way binding to model should not change view
     view.ScoreInput.Value |> shouldEqual 0
 
@@ -97,18 +107,24 @@ let ``Framework.start and full Sync exercise`` () =
     // and trigger bindings on model properties that changed
     view.ScoreDisplay.Value |> shouldEqual "Chad: 1"
     view.NameLabel.Value |> shouldEqual "Chad"
+    view.ScoreDisplay2.Value |> shouldEqual "Chad scored 1"
 
     view.ScoreInput.Value <- 3
     model.Value |> shouldEqual { Name = "Chad"; Score = 3 }
     view.ScoreDisplay.Value |> shouldEqual "Chad: 3"
+    view.ScoreDisplay2.Value |> shouldEqual "Chad scored 3"
 
     // triggering view events should raise the custom events and get handled by dispatcher
     view.Add 2
     model.Value |> shouldEqual { Name = "Chad"; Score = 5 }
     view.ScoreDisplay.Value |> shouldEqual "Chad: 5"
+    view.ScoreDisplay2.Value |> shouldEqual "Chad scored 5"
     view.ScoreInput.Value |> shouldEqual 3
+    multiBindCalls |> shouldEqual 4
 
     view.Reset ()
     model.Value |> shouldEqual { Name = "Bob"; Score = 1 }
     view.NameBox.Value |> shouldEqual "Bob"
     view.NameLabel.Value |> shouldEqual "Bob"
+    view.ScoreDisplay2.Value |> shouldEqual "Bob scored 1"
+    multiBindCalls |> shouldEqual 5

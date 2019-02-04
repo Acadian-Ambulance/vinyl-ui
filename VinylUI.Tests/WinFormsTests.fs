@@ -91,7 +91,7 @@ let ``Bind matching properties two-way`` sourceUpdate =
     use form = new FakeForm()
     let viewExpr = <@ form.TextBox.Text @>
     let binding = Bind.view(viewExpr).toModel(<@ model.Name @>, sourceUpdate)
-    binding.ModelProperty |> shouldEqual Model.NameProperty
+    binding.ModelProperties |> shouldEqual [Model.NameProperty]
     binding |> testModelToView viewExpr model.Name "Bob" "Bob"
     binding |> testViewToModel sourceUpdate viewExpr model.Name "Cat" "Cat"
 
@@ -141,7 +141,7 @@ let ``Bind obj to val type two-way`` sourceUpdate =
     form.ListBox.DataSource <- [ 0 .. 100 ] |> List.toArray
     let viewExpr = <@ form.ListBox.SelectedItem @>
     let binding = Bind.view(viewExpr).toModel(<@ model.Id @>, sourceUpdate)
-    binding.ModelProperty |> shouldEqual Model.IdProperty
+    binding.ModelProperties |> shouldEqual [Model.IdProperty]
     binding |> testModelToView viewExpr (box model.Id) 3 (box 3)
     binding |> testViewToModel sourceUpdate viewExpr model.Id (box 4) 4
 
@@ -185,7 +185,7 @@ let ``Bind string to int two-way with validation`` sourceUpdate =
         | false, _ -> Error parseError
     use errorProvider = new ErrorProvider()
     let binding = Bind.view(viewExpr).toModelResult(<@ model.AgeResult @>, validator, string, errorProvider, sourceUpdate)
-    binding.ModelProperty |> shouldEqual Model.AgeResultProperty
+    binding.ModelProperties |> shouldEqual [Model.AgeResultProperty]
     let res r : Result<int, string> = r
     binding |> testModelToView viewExpr "30" (Ok 7 |> res) "7"
     binding |> testModelToView viewExpr "7" (Error "test" |> res) "7"
@@ -203,7 +203,7 @@ let ``Bind matching properties one way to model`` sourceUpdate =
     use form = new FakeForm()
     let viewExpr = <@ form.TextBox.Text @>
     let binding = Bind.view(viewExpr).toModelOneWay(<@ model.Name @>, sourceUpdate)
-    binding.ModelProperty |> shouldEqual Model.NameProperty
+    binding.ModelProperties |> shouldEqual [Model.NameProperty]
     binding |> testNonModelToView viewExpr "" "Cat"
     binding |> testViewToModel sourceUpdate viewExpr model.Name "Bob" "Bob"
 
@@ -212,7 +212,7 @@ let ``Bind matching properties one way to model for custom control`` () =
     use form = new FakeForm()
     let viewExpr = <@ form.CustomTextControl.Value @>
     let binding = Bind.viewInpc(viewExpr).toModelOneWay(<@ model.Name @>)
-    binding.ModelProperty |> shouldEqual Model.NameProperty
+    binding.ModelProperties |> shouldEqual [Model.NameProperty]
     binding |> testNonModelToView viewExpr "" "Cat"
     binding |> testViewInpcToModel viewExpr model.Name "Bob" "Bob"
 
@@ -238,7 +238,7 @@ let ``Bind obj to val type one way to model`` sourceUpdate =
     form.ListBox.DataSource <- [ 0 .. 100 ] |> List.toArray
     let viewExpr = <@ form.ListBox.SelectedItem @>
     let binding = Bind.view(viewExpr).toModelOneWay(<@ model.Id @>, sourceUpdate)
-    binding.ModelProperty |> shouldEqual Model.IdProperty
+    binding.ModelProperties |> shouldEqual [Model.IdProperty]
     binding |> testNonModelToView viewExpr (box 0) 3
     binding |> testViewToModel sourceUpdate viewExpr model.Id (box 4) 4
 
@@ -282,7 +282,7 @@ let ``Bind string to int one way to model with validation`` sourceUpdate =
         | false, _ -> Error parseError
     use errorProvider = new ErrorProvider()
     let binding = Bind.view(viewExpr).toModelResultOneWay(<@ model.AgeResult @>, validator, errorProvider, sourceUpdate)
-    binding.ModelProperty |> shouldEqual Model.AgeResultProperty
+    binding.ModelProperties |> shouldEqual [Model.AgeResultProperty]
     binding |> testNonModelToView viewExpr "" (Ok 7)
     binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "abc" (Error parseError)
     errorProvider.GetError form.TextBox |> shouldEqual parseError
@@ -298,7 +298,7 @@ let ``Bind matching properties one way to view`` () =
     use form = new FakeForm()
     let viewExpr = <@ form.TextBox.Text @>
     let binding = Bind.model(<@ model.Name @>).toViewOneWay(viewExpr)
-    binding.ModelProperty |> shouldEqual Model.NameProperty
+    binding.ModelProperties |> shouldEqual [Model.NameProperty]
     binding |> testModelToView viewExpr model.Name "Bob" "Bob"
     binding |> testNonViewToModel viewExpr model.Name "Cat"
 
@@ -307,7 +307,7 @@ let ``Bind matching properties one way to view for custom control`` () =
     use form = new FakeForm()
     let viewExpr = <@ form.CustomTextControl.Value @>
     let binding = Bind.model(<@ model.Name @>).toViewInpcOneWay(viewExpr)
-    binding.ModelProperty |> shouldEqual Model.NameProperty
+    binding.ModelProperties |> shouldEqual [Model.NameProperty]
     binding |> testModelToView viewExpr model.Name "Bob" "Bob"
     binding |> testNonViewInpcToModel viewExpr model.Name "Cat"
 
@@ -333,7 +333,7 @@ let ``Bind obj to val type one way to view`` () =
     form.ListBox.DataSource <- [ 0 .. 100 ] |> List.toArray
     let viewExpr = <@ form.ListBox.SelectedItem @>
     let binding = Bind.model(<@ model.Id @>).toViewOneWay(viewExpr)
-    binding.ModelProperty |> shouldEqual Model.IdProperty
+    binding.ModelProperties |> shouldEqual [Model.IdProperty]
     binding |> testModelToView viewExpr (box model.Id) 3 (box 3)
     binding |> testNonViewToModel viewExpr model.Id (box 4)
 
@@ -374,7 +374,7 @@ let ``Bind model to func`` () =
         fVal <- Some n
         fCount <- fCount + 1
     let binding = Bind.model(<@ model.Name @>).toFunc(f)
-    binding.ModelProperty |> shouldEqual Model.NameProperty
+    binding.ModelProperties |> shouldEqual [Model.NameProperty]
     use s = binding.ViewChanged.Subscribe (fun _ -> failwith "view should not be updated here")
     (fVal, fCount) |> shouldEqual (Some model.Name, 1)
     binding.SetView (box "Bob")
@@ -387,7 +387,7 @@ let ``Bind model to data source`` () =
     use form = new FakeForm()
     let getList () = form.ListBox.DataSource :?> Book seq |> Seq.toList
     let binding = Bind.model(<@ model.Books @>).toDataSource(form.ListBox, <@ fun b -> b.Id, b.Name @>)
-    binding.ModelProperty |> shouldEqual Model.BooksProperty
+    binding.ModelProperties |> shouldEqual [Model.BooksProperty]
     getList () |> shouldEqual model.Books
     form.ListBox.SelectedIndex |> shouldEqual -1
 
