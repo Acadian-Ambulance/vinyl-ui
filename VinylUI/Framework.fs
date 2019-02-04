@@ -14,21 +14,13 @@ type EventHandler<'Model> =
     | Async of ('Model -> AsyncSeq<'Model>)
 
 module Model =
-    let equalIgnoreCase a b = String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
+    let private equalIgnoreCase a b = String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
 
-    let computedProperties (props: PropertyInfo seq) =
-        let ctorParams = lazy ((props |> Seq.head).DeclaringType.GetConstructors().[0].GetParameters()
-                               |> Array.map (fun p -> p.Name))
+    let isComputedProperty (typ: Type) =
+        let ctorParams = typ.GetConstructors().[0].GetParameters() |> Array.map (fun p -> p.Name)
         let isCtorParam (prop: PropertyInfo) =
-            ctorParams.Value |> Seq.exists (equalIgnoreCase prop.Name)
-        props |> Seq.filter (not << isCtorParam)
-
-    let changes (props: PropertyInfo seq) (prev: 'a) (current: 'a) =
-        props |> Seq.choose (fun prop ->
-            match prop.GetValue prev, prop.GetValue current with
-            | p, c when c <> p -> Some (prop, c)
-            | _ -> None
-        )
+            ctorParams |> Seq.exists (equalIgnoreCase prop.Name)
+        not << isCtorParam
 
     let permute (model: 'Model) changes =
         let t = typeof<'Model>
@@ -45,11 +37,17 @@ module Model =
             )
         ctor.Invoke(args) :?> 'Model
 
-    let updateView bindings changes =
-        changes |> Seq.iter (fun (prop, value) ->
-            bindings
-            |> Seq.filter (fun b -> b.ModelProperty = prop)
-            |> Seq.iter (fun b -> b.SetView value)
+    let change (prevModel: 'a) (newModel: 'a) (prop: PropertyInfo) =
+        match prop.GetValue prevModel, prop.GetValue newModel with
+        | prev, new' when new' <> prev -> Some (prop, new')
+        | _ -> None
+
+    let diff props prevModel newModel =
+        props |> Seq.choose (change prevModel newModel)
+
+    let updateView changes =
+        changes |> Seq.iter (fun (bindings, newValue) ->
+            bindings |> Seq.iter (fun b -> b.SetView newValue)
         )
 
 type ISignal<'a> =
@@ -79,9 +77,12 @@ module Framework =
         | _ -> e
 
     let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
-        let bindings = binder view initialModel
         let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
-        let computedProps = Model.computedProperties props
+        let computedProps = props |> Array.filter (Model.isComputedProperty typeof<'Model>)
+        let bindings = binder view initialModel |> Seq.toArray
+        let propBindings = props |> Array.map (fun p -> (p, bindings |> Array.filter (fun b -> b.ModelProperty = p)))
+                                 |> dict
+        let bindingChanges = Seq.map (fun (prop, value) -> (propBindings.[prop], value))
 
         let modelSubject = new BehaviorSubject<'Model>(initialModel) |> Signal
 
@@ -91,18 +92,17 @@ module Framework =
                 let change = (binding.ModelProperty, value)
                 let prevModel = modelSubject.Value
                 modelSubject.Value <- Model.permute modelSubject.Value [change]
-                let computedChanges = Model.changes computedProps prevModel modelSubject.Value |> Seq.toList
-                Model.updateView (bindings |> Seq.except [binding]) (change :: computedChanges)
+                // update view for bindings on computed properties that changed
+                Model.diff computedProps prevModel modelSubject.Value
+                |> bindingChanges
+                |> Model.updateView
             )
         )
 
-        let eventList : IObservable<'Event> list = events view
-        let eventStream = eventList.Merge()
-
         let updateModel prevModel newModel =
-            let changes = newModel |> Model.changes props prevModel
-            changes |> Model.updateView bindings
+            let changes = Model.diff props prevModel newModel
             modelSubject.Value <- Model.permute modelSubject.Value changes
+            Model.updateView (bindingChanges changes)
 
         let runSync handler =
             let handle () = 
@@ -135,6 +135,9 @@ module Framework =
                     (unwrapException >> (errorHandler |> Option.defaultValue defaultAsyncErrorHandler)),
                 cancellationContinuation = ignore
             )
+
+        let eventList : IObservable<'Event> list = events view
+        let eventStream = eventList.Merge()
 
         let subscription =
             Observer.Create(fun event ->
