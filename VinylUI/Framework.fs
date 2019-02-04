@@ -92,6 +92,9 @@ module Framework =
                 let change = (binding.ModelProperty, value)
                 let prevModel = modelSubject.Value
                 modelSubject.Value <- Model.permute modelSubject.Value [change]
+                // update view for other bindings on the same property
+                [ (propBindings.[binding.ModelProperty] |> Array.except [binding], value) ]
+                |> Model.updateView
                 // update view for bindings on computed properties that changed
                 Model.diff computedProps prevModel modelSubject.Value
                 |> bindingChanges

@@ -58,6 +58,7 @@ type MyView() =
     member this.Reset () = reset.Trigger ()
 
     member val NameBox = Control<string>("")
+    member val NameLabel = Control<string>("")
     member val ScoreInput = Control<int>(0)
     member val ScoreDisplay = Control<string>("")
 
@@ -71,6 +72,7 @@ let ``Framework.start and full Sync exercise`` () =
         [ Bind.viewInpc(<@ view.NameBox.Value @>).toModel(<@ model.Name @>)
           Bind.viewInpc(<@ view.ScoreInput.Value @>).toModelOneWay(<@ model.Score @>)
           Bind.model(<@ model.Display @>).toViewInpcOneWay(<@ view.ScoreDisplay.Value @>)
+          Bind.model(<@ model.Name @>).toViewInpcOneWay(<@ view.NameLabel.Value @>)
         ]
 
     let events (view: MyView) =
@@ -90,6 +92,7 @@ let ``Framework.start and full Sync exercise`` () =
 
     // creating the bindings should have updated the view...
     view.NameBox.Value |> shouldEqual "Bob"
+    view.NameLabel.Value |> shouldEqual "Bob"
     view.ScoreDisplay.Value |> shouldEqual "Bob: 1"
     // but one-way binding to model should not change view
     view.ScoreInput.Value |> shouldEqual 0
@@ -99,6 +102,7 @@ let ``Framework.start and full Sync exercise`` () =
     model.Value |> shouldEqual { Name = "Chad"; Score = 1 }
     // and trigger bindings on model properties that changed
     view.ScoreDisplay.Value |> shouldEqual "Chad: 1"
+    view.NameLabel.Value |> shouldEqual "Chad"
 
     view.ScoreInput.Value <- 3
     model.Value |> shouldEqual { Name = "Chad"; Score = 3 }
@@ -113,3 +117,4 @@ let ``Framework.start and full Sync exercise`` () =
     view.Reset ()
     model.Value |> shouldEqual { Name = "Bob"; Score = 1 }
     view.NameBox.Value |> shouldEqual "Bob"
+    view.NameLabel.Value |> shouldEqual "Bob"
