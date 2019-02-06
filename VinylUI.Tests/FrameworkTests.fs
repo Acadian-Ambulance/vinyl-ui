@@ -17,12 +17,6 @@ with
     static member ScoreProperty = typeof<MyModel>.GetProperty("Score")
     static member DisplayProperty = typeof<MyModel>.GetProperty("Display")
 
-let props = typeof<MyModel>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
-
-[<Test>]
-let ``Model.isComputedProperty returns true only for computed properties``() =
-    props |> Array.filter (Model.isComputedProperty typeof<MyModel>) |> shouldEqual [| MyModel.DisplayProperty |]
-
 [<Test>]
 let ``Model.permute creates new model with new property value``() =
     let original = { Name = "before value"; Score = 1 }

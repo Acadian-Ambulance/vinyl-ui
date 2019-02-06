@@ -8,6 +8,7 @@ open System.Runtime.ExceptionServices
 open System.Reflection
 open System.Threading
 open FSharp.Control
+open FSharp.Reflection
 
 type EventHandler<'Model> =
     | Sync of ('Model -> 'Model)
@@ -77,8 +78,9 @@ module Framework =
         | _ -> e
 
     let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
+        let fields = FSharpType.GetRecordFields(typeof<'Model>)
         let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
-        let computedProps = props |> Array.filter (Model.isComputedProperty typeof<'Model>)
+        let computedProps = props |> Array.except fields
         let bindings = binder view initialModel |> Seq.toArray
         let propBindings = props |> Array.map (fun p -> (p, bindings |> Array.filter (fun b -> b.ModelProperty = p)))
                                  |> dict
