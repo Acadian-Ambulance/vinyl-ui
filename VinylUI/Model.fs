@@ -13,22 +13,16 @@ type Binding = {
 }
 
 module Model =
-    let private equalIgnoreCase a b = String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
-
     let permute (model: 'Model) changes =
         let t = typeof<'Model>
-        let ctor = t.GetConstructors().[0]
-        let propNameIs name (prop: PropertyInfo) = equalIgnoreCase name prop.Name
-        let props = t.GetProperties()
-        let getCurrentValue propName = props |> Seq.find (propNameIs propName) |> (fun p -> p.GetValue model)
-        let args =
-            ctor.GetParameters()
-            |> Array.map (fun param ->
-                match changes |> Array.tryFind (fst >> propNameIs param.Name) with
-                | Some (_, newValue) -> box newValue
-                | None -> getCurrentValue param.Name
+        let values =
+            FSharpType.GetRecordFields(t) |> Array.map (fun field ->
+                changes
+                |> Array.tryFind (fst >> (=) field)
+                |> Option.map snd
+                |> Option.defaultWith (fun () -> field.GetValue model)
             )
-        ctor.Invoke(args) :?> 'Model
+        FSharpValue.MakeRecord(t, values) :?> 'Model
 
     let change (prevModel: 'a) (newModel: 'a) (prop: PropertyInfo) =
         match prop.GetValue prevModel, prop.GetValue newModel with
