@@ -35,6 +35,11 @@ type BindSourcePart<'Model> = {
     SourceProperty: PropertyInfo
 }
 
+type BindSourceMulti<'Model> = {
+    Source: obj
+    SourceProperties: PropertyInfo list
+}
+
 module BindingPatterns =
     open FSharp.Quotations.Patterns
     open FSharp.Quotations.Evaluator
@@ -44,17 +49,22 @@ module BindingPatterns =
             Some (QuotationEvaluator.EvaluateUntyped source, propInfo)
         | _ -> None
 
+    let rec (|PropertyListExpression|_|) = function
+        | PropertyGet (_, p, []) :: PropertyListExpression rest ->
+            Some (p :: rest)
+        | [] -> Some []
+        | _ -> None
+
     let (|PropertyTupleSelector|_|) = function
         | Lambda (_, NewTuple [PropertyGet (_, displayProp, []); PropertyGet (_, valueProp, [])]) ->
             Some (displayProp, valueProp)
         | _ -> None
 
-[<ReferenceEquality>]
-type Binding = {
-    ModelProperty: PropertyInfo
-    ViewChanged: IObservable<obj>
-    SetView: obj -> unit
-}
+    let (|PropertyTupleExpression|_|) expr =
+        match expr with
+        | NewTuple (PropertyGet (Some source, prop1, []) :: PropertyListExpression props) ->
+            Some (QuotationEvaluator.EvaluateUntyped source, prop1 :: props)
+        | _ -> None
 
 type BindingProxy(initValue) =
     let mutable value = initValue
@@ -118,22 +128,28 @@ module CommonBinding =
         let proxy = BindingProxy value
         let proxyBindInfo = { bindInfo with Source = proxy; SourceProperty = BindingProxy.Property }
         createBinding proxyBindInfo
-        { ModelProperty = bindInfo.SourceProperty
+        { ModelProperties = [bindInfo.SourceProperty]
           ViewChanged = proxy.ViewChanged
           SetView = proxy.SetView
         }
 
-    let controlPart<'Control, 'View> (controlProperty: Expr<'View>) =
+    let controlPart<'Control, 'View> (controlProperty: Expr<'View>) : BindViewPart<'Control, 'View> =
         match controlProperty with
         | PropertyExpression (ctl, ctlProp) when typedefof<'Control>.IsAssignableFrom(ctl.GetType()) ->
-            { Control = ctl :?> 'Control; ControlProperty = ctlProp } : BindViewPart<'Control, 'View>
+            { Control = ctl :?> 'Control; ControlProperty = ctlProp }
         | _ -> failwithf "Expected a property access expression of an object of type %s" typedefof<'Control>.Name
 
-    let modelPart (modelProperty: Expr<'Model>) =
+    let modelPart (modelProperty: Expr<'Model>) : BindSourcePart<'Model> =
         match modelProperty with
         | PropertyExpression (src, srcProp) ->
-            { Source = src; SourceProperty = srcProp } : BindSourcePart<'Model>
-        | _ -> failwith "Expected a property access expression"
+            { Source = src; SourceProperty = srcProp }
+        | _ -> failwith "Expected a quoted property access, example <@ model.Property @>"
+
+    let modelMulti (modelProperties: Expr<'Model>) : BindSourceMulti<'Model> =
+        match modelProperties with
+        | PropertyTupleExpression (src, srcProps) ->
+            { Source = src; SourceProperties = srcProps }
+        | _ -> failwith "Expected a quoted tuple of 2 or more properties, example <@ model.Property1, model.Property2 @>"
 
     let fromParts (view: BindViewPart<'Control, 'View>) (source: BindSourcePart<'Source>) mode : BindingInfo<'Control, 'View, 'Source> =
         { Control = view.Control
@@ -212,13 +228,17 @@ module CommonBinding =
             ConvertToControl = convertToControl
         }
 
+
 /// Functions for creating bindings
 module Bind =
-    /// Start the creation of a binding on an INotifyPropertyChanged-enabled view component property
+    /// Start the creation of a binding on an INotifyPropertyChanged-enabled view component property.
     let viewInpc controlProperty = CommonBinding.controlPart<INotifyPropertyChanged, 'View> controlProperty
 
-    /// Start the creation of a binding on a model property
+    /// Start the creation of a binding on a model property.
     let model modelProperty = CommonBinding.modelPart modelProperty
+
+    /// Start the creation of a binding on multiple model properties given a quoted tuple of properties.
+    let modelMulti modelProperties = CommonBinding.modelMulti modelProperties
 
 [<Extension>]
 type BindPartExtensions =
@@ -341,7 +361,15 @@ type BindPartExtensions =
     static member toFunc (source: BindSourcePart<'a>, updateView) =
         let update = unbox<'a> >> updateView
         update (source.SourceProperty.GetValue source.Source)
-        { ModelProperty = source.SourceProperty
+        { ModelProperties = [source.SourceProperty]
           ViewChanged = Event<_>().Publish
           SetView = update
+        }
+
+    [<Extension>]
+    static member toFunc (source: BindSourceMulti<'a>, updateView) =
+        updateView (Model.getTupledValues source.Source source.SourceProperties |> unbox)
+        { ModelProperties = source.SourceProperties
+          ViewChanged = Event<_>().Publish
+          SetView = unbox<'a> >> updateView
         }
