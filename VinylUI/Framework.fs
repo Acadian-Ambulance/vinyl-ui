@@ -8,47 +8,11 @@ open System.Runtime.ExceptionServices
 open System.Reflection
 open System.Threading
 open FSharp.Control
+open FSharp.Reflection
 
 type EventHandler<'Model> =
     | Sync of ('Model -> 'Model)
     | Async of ('Model -> AsyncSeq<'Model>)
-
-module Model =
-    let private equalIgnoreCase a b = String.Equals(a, b, StringComparison.InvariantCultureIgnoreCase)
-
-    let isComputedProperty (typ: Type) =
-        let ctorParams = typ.GetConstructors().[0].GetParameters() |> Array.map (fun p -> p.Name)
-        let isCtorParam (prop: PropertyInfo) =
-            ctorParams |> Seq.exists (equalIgnoreCase prop.Name)
-        not << isCtorParam
-
-    let permute (model: 'Model) changes =
-        let t = typeof<'Model>
-        let ctor = t.GetConstructors().[0]
-        let propNameIs name (prop: PropertyInfo) = equalIgnoreCase name prop.Name
-        let props = t.GetProperties()
-        let getCurrentValue propName = props |> Seq.find (propNameIs propName) |> (fun p -> p.GetValue model)
-        let args =
-            ctor.GetParameters()
-            |> Array.map (fun param ->
-                match changes |> Seq.tryFind (fst >> propNameIs param.Name) with
-                | Some (_, newValue) -> box newValue
-                | None -> getCurrentValue param.Name
-            )
-        ctor.Invoke(args) :?> 'Model
-
-    let change (prevModel: 'a) (newModel: 'a) (prop: PropertyInfo) =
-        match prop.GetValue prevModel, prop.GetValue newModel with
-        | prev, new' when new' <> prev -> Some (prop, new')
-        | _ -> None
-
-    let diff props prevModel newModel =
-        props |> Seq.choose (change prevModel newModel)
-
-    let updateView changes =
-        changes |> Seq.iter (fun (bindings, newValue) ->
-            bindings |> Seq.iter (fun b -> b.SetView newValue)
-        )
 
 type ISignal<'a> =
     inherit IObservable<'a>
@@ -78,34 +42,33 @@ module Framework =
 
     let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
         let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
-        let computedProps = props |> Array.filter (Model.isComputedProperty typeof<'Model>)
+        let fields = FSharpType.GetRecordFields(typeof<'Model>)
+        let computedProps = props |> Array.except fields
         let bindings = binder view initialModel |> Seq.toArray
-        let propBindings = props |> Array.map (fun p -> (p, bindings |> Array.filter (fun b -> b.ModelProperty = p)))
-                                 |> dict
-        let bindingChanges = Seq.map (fun (prop, value) -> (propBindings.[prop], value))
+        let bindingsFor prop = bindings |> Array.filter (fun b -> b.ModelProperties |> List.contains prop)
+        let propBindings = props |> Array.map (fun p -> (p, bindingsFor p)) |> dict
+        let bindingsTriggered changes = changes |> Seq.collect (fst >> propBindings.get_Item) |> Seq.distinct
 
         let modelSubject = new BehaviorSubject<'Model>(initialModel) |> Signal
 
         // subscribe to control changes to update the model
         bindings |> Seq.iter (fun binding ->
             binding.ViewChanged.Add (fun value ->
-                let change = (binding.ModelProperty, value)
+                let prop = binding.ModelProperties.Head // multi-binding from view not supported
+                let change = (prop, value)
                 let prevModel = modelSubject.Value
-                modelSubject.Value <- Model.permute modelSubject.Value [change]
-                // update view for other bindings on the same property
-                [ (propBindings.[binding.ModelProperty] |> Array.except [binding], value) ]
-                |> Model.updateView
-                // update view for bindings on computed properties that changed
-                Model.diff computedProps prevModel modelSubject.Value
-                |> bindingChanges
-                |> Model.updateView
+                modelSubject.Value <- Model.permute modelSubject.Value [| change |]
+                // update view for other bindings that changed
+                Model.diff (Array.append [| prop |] computedProps) prevModel modelSubject.Value
+                |> bindingsTriggered
+                |> Model.updateView modelSubject.Value
             )
         )
 
         let updateModel prevModel newModel =
-            let changes = Model.diff props prevModel newModel
+            let changes = Model.diff props prevModel newModel |> Seq.toArray
             modelSubject.Value <- Model.permute modelSubject.Value changes
-            Model.updateView (bindingChanges changes)
+            Model.updateView modelSubject.Value (bindingsTriggered changes)
 
         let runSync handler =
             let handle () = 
