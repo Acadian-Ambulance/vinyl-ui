@@ -137,19 +137,22 @@ module CommonBinding =
         match controlProperty with
         | PropertyExpression (ctl, ctlProp) when typedefof<'Control>.IsAssignableFrom(ctl.GetType()) ->
             { Control = ctl :?> 'Control; ControlProperty = ctlProp }
-        | _ -> failwithf "Expected a property access expression of an object of type %s" typedefof<'Control>.Name
+        | _ -> failwithf "Expected a property access expression of an object of type %s, but got invalid expression: %A"
+                         typedefof<'Control>.Name controlProperty
 
     let modelPart (modelProperty: Expr<'Model>) : BindSourcePart<'Model> =
         match modelProperty with
         | PropertyExpression (src, srcProp) ->
             { Source = src; SourceProperty = srcProp }
-        | _ -> failwith "Expected a quoted property access, example <@ model.Property @>"
+        | _ -> failwithf "Expected a quoted property access, example <@ model.Property @>, but got invalid expression: %A"
+                         modelProperty
 
     let modelMulti (modelProperties: Expr<'Model>) : BindSourceMulti<'Model> =
         match modelProperties with
         | PropertyTupleExpression (src, srcProps) ->
             { Source = src; SourceProperties = srcProps }
-        | _ -> failwith "Expected a quoted tuple of 2 or more properties, example <@ model.Property1, model.Property2 @>"
+        | _ -> failwithf "Expected a quoted tuple of 2 or more properties, example <@ model.Property1, model.Property2 @>, but got invalid expression: %A"
+                         modelProperties
 
     let fromParts (view: BindViewPart<'Control, 'View>) (source: BindSourcePart<'Source>) mode : BindingInfo<'Control, 'View, 'Source> =
         { Control = view.Control
