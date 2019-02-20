@@ -81,20 +81,13 @@ module Framework =
                 with e -> errorHandler e
 
         let runAsync handler =
-            let gui = SynchronizationContext.Current
             Async.StartWithContinuations(
                 computation = (async {
-                    do! Async.SwitchToThreadPool()
-
                     let mutable prevModel = modelSubject.Value
                     do! handler prevModel |> AsyncSeq.iterAsync (fun newModel -> async {
-                        do! Async.SwitchToContext(gui)
                         newModel |> updateModel prevModel
                         prevModel <- newModel
-                        do! Async.SwitchToThreadPool()
                     })
-
-                    do! Async.SwitchToContext(gui)
                 }),
                 continuation = id,
                 exceptionContinuation =
