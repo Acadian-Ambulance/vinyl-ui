@@ -9,5 +9,5 @@ let main args =
     Application.SetCompatibleTextRenderingDefault(false);
 
     let form = new ShapeAreaForm()
-    form.Run(FormLogic.start) |> ignore
+    form.RunApp(FormLogic.start) |> ignore
     0
