@@ -28,10 +28,10 @@ type FormExtensions =
             modelSignal.Value
         finally subscription.Dispose()
 
-    /// Starts a WPF application with VinylUI and opens the given form.
+    /// Starts a Windows Forms application with VinylUI and opens the given form.
     /// VinylUI.Framework.start should be used with partial application to supply the start function.
     [<Extension>]
-    static member Run (form, start) =
+    static member RunApp (form, start) =
         let modelSignal = form.Show(start)
         Application.Run(form :> Form)
         modelSignal.Value
@@ -47,8 +47,8 @@ type FormCsExtensions =
         FormExtensions.ShowDialog(form, start.Invoke)
 
     [<Extension>]
-    static member Run (form, start: Func<_,_>) =
-        FormExtensions.Run(form, start.Invoke)
+    static member RunApp (form, start: Func<_,_>) =
+        FormExtensions.RunApp(form, start.Invoke)
 
 
 module WinFormsBinding =
