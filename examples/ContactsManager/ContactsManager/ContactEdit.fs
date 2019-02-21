@@ -98,7 +98,7 @@ let private binder (view: View) model =
                                                                Option.defaultValue -1)
 
         // Bind the model's group list one-way to the combo box's item source
-        Bind.model(<@ model.Groups @>).toItemsSource(view.GroupCombo)
+        Bind.model(<@ model.Groups @>).toItemsSourceDirect(view.GroupCombo)
 
         // Bind the group combo's text two-way to the model group.
         // Note that the model property is string option. This overload of toModel automatically converts
