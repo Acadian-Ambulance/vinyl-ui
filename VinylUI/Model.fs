@@ -8,7 +8,7 @@ open FSharp.Reflection
 [<ReferenceEquality>]
 type Binding = {
     ModelProperties: PropertyInfo list
-    ViewChanged: IObservable<obj>
+    ViewChanged: IObservable<obj> option
     SetView: obj -> unit
 }
 

@@ -128,8 +128,12 @@ module CommonBinding =
         let proxy = BindingProxy value
         let proxyBindInfo = { bindInfo with Source = proxy; SourceProperty = BindingProxy.Property }
         createBinding proxyBindInfo
+        let viewChanged =
+            match bindInfo.BindingMode with
+            | OneWayToView -> None
+            | _ -> Some (proxy.ViewChanged :> IObservable<_>)
         { ModelProperties = [bindInfo.SourceProperty]
-          ViewChanged = proxy.ViewChanged
+          ViewChanged = viewChanged
           SetView = proxy.SetView
         }
 
@@ -365,7 +369,7 @@ type BindPartExtensions =
         let update = unbox<'a> >> updateView
         update (source.SourceProperty.GetValue source.Source)
         { ModelProperties = [source.SourceProperty]
-          ViewChanged = Event<_>().Publish
+          ViewChanged = None
           SetView = update
         }
 
@@ -373,6 +377,6 @@ type BindPartExtensions =
     static member toFunc (source: BindSourceMulti<'a>, updateView) =
         updateView (Model.getTupledValues source.Source source.SourceProperties |> unbox)
         { ModelProperties = source.SourceProperties
-          ViewChanged = Event<_>().Publish
+          ViewChanged = None
           SetView = unbox<'a> >> updateView
         }

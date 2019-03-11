@@ -375,7 +375,7 @@ let ``Bind model to func`` () =
         fCount <- fCount + 1
     let binding = Bind.model(<@ model.Name @>).toFunc(f)
     binding.ModelProperties |> shouldEqual [Model.NameProperty]
-    use s = binding.ViewChanged.Subscribe (fun _ -> failwith "view should not be updated here")
+    use __ = binding |> onViewChanged (fun _ -> failwith "view should not be updated here")
     (fVal, fCount) |> shouldEqual (Some model.Name, 1)
     binding.SetView (box "Bob")
     (fVal, fCount) |> shouldEqual (Some "Bob", 2)
