@@ -128,3 +128,21 @@ let ``Framework.start and full Sync exercise`` () =
     view.NameLabel.Value |> shouldEqual "Bob"
     view.ScoreDisplay2.Value |> shouldEqual "Bob scored 1"
     multiBindCalls |> shouldEqual 5
+
+[<Test>]
+let ``Framework.start does not fire to-view binding on same property from view changed`` () =
+    let mutable bindingSetView = 0
+    let toView x = bindingSetView <- bindingSetView + 1; x
+    let binder (view: MyView) (model: MyModel) =
+        [ Bind.viewInpc(<@ view.NameBox.Value @>).toModel(<@ model.Name @>, id, toView)
+        ]
+
+    let events _ = []
+    let dispatcher _ = Sync id
+
+    let model, sub = Framework.start binder events dispatcher view initModel
+    use __ = sub
+
+    bindingSetView |> shouldEqual 1
+    view.NameBox.Value <- "Chad"
+    bindingSetView |> shouldEqual 1

@@ -53,7 +53,7 @@ module Framework =
 
         // subscribe to control changes to update the model
         bindings |> Seq.iter (fun binding ->
-            binding.ViewChanged.Add (fun value ->
+            binding.ViewChanged |> Option.iter (fun vc -> vc.Add (fun value ->
                 let prop = binding.ModelProperties.Head // multi-binding from view not supported
                 let change = (prop, value)
                 let prevModel = modelSubject.Value
@@ -61,8 +61,9 @@ module Framework =
                 // update view for other bindings that changed
                 Model.diff (Array.append [| prop |] computedProps) prevModel modelSubject.Value
                 |> bindingsTriggered
+                |> Seq.filter (fun b -> b.ModelProperties <> [prop] || b.ViewChanged.IsNone)
                 |> Model.updateView modelSubject.Value
-            )
+            ))
         )
 
         let updateModel prevModel newModel =
