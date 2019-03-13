@@ -6,7 +6,6 @@ open System.Reactive.Subjects
 open System.Reactive.Linq
 open System.Runtime.ExceptionServices
 open System.Reflection
-open System.Threading
 open FSharp.Control
 open FSharp.Reflection
 
@@ -83,13 +82,13 @@ module Framework =
 
         let runAsync handler =
             Async.StartWithContinuations(
-                computation = (async {
+                computation = async {
                     let mutable prevModel = modelSubject.Value
                     do! handler prevModel |> AsyncSeq.iterAsync (fun newModel -> async {
                         newModel |> updateModel prevModel
                         prevModel <- newModel
                     })
-                }),
+                },
                 continuation = id,
                 exceptionContinuation =
                     (unwrapException >> (errorHandler |> Option.defaultValue defaultAsyncErrorHandler)),
@@ -112,6 +111,10 @@ module Framework =
             |> eventStream.Subscribe
 
         (modelSubject :> ISignal<'Model>, subscription)
+
+[<AutoOpen>]
+module Prelude =
+    let asyncSeq = FSharp.Control.AsyncSeqExtensions.asyncSeq
 
 [<RequireQualifiedAccess>]
 module Observable =
