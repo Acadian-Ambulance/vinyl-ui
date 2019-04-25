@@ -30,7 +30,10 @@ module Framework =
     let mutable private errorHandler : (exn -> unit) option = None
 
     /// Set an error handler for uncaught exceptions thrown by event handlers
-    let setErrorHandler (handler: Action<exn>) = errorHandler <- Some handler.Invoke
+    let setErrorHandler handler = errorHandler <- Some handler
+
+    /// Set an error handler as a System.Action for uncaught exceptions thrown by event handlers
+    let setErrorHandlerAction (handler: Action<exn>) = errorHandler <- Some handler.Invoke
 
     let private defaultAsyncErrorHandler e = ExceptionDispatchInfo.Capture(e).Throw()
 
