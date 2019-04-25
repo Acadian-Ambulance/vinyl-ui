@@ -245,6 +245,7 @@ _Pvt_Extensions
 # Paket dependency manager
 paket-files/
 **/paket-files/
+Paket.Restore.targets
 
 # FAKE - F# Make
 .fake/
