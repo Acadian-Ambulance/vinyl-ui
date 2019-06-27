@@ -146,3 +146,27 @@ let ``Framework.start does not fire to-view binding on same property from view c
     bindingSetView |> shouldEqual 1
     view.NameBox.Value <- "Chad"
     bindingSetView |> shouldEqual 1
+
+[<Test>]
+let ``Model-to-view bindings fire in the order they are given`` () =
+    let mutable triggered = []
+    let binder (view: MyView) (model: MyModel) =
+        [
+          Bind.model(<@ model.Score @>).toFunc(fun _ -> triggered <- triggered @ ["Score"])
+          Bind.model(<@ model.Name @>).toFunc(fun _ -> triggered <- triggered @ ["Name"])
+        ]
+
+    let events (view: MyView) =
+        [ view.WasReset |> Observable.mapTo Reset ]
+
+    let dispatcher = function
+        | Reset -> Sync (fun _ -> initModel)
+        | _ -> Sync id
+
+    let model, sub = Framework.start binder events dispatcher view { Name = "Chad"; Score = 2 }
+    use __ = sub
+    triggered |> shouldEqual ["Score"; "Name"]
+
+    triggered <- []
+    view.Reset()
+    triggered |> shouldEqual ["Score"; "Name"]
