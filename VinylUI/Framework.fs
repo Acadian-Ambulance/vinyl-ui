@@ -47,9 +47,10 @@ module Framework =
         let fields = FSharpType.GetRecordFields(typeof<'Model>)
         let computedProps = props |> Array.except fields
         let bindings = binder view initialModel |> Seq.toArray
-        let bindingsFor prop = bindings |> Array.filter (fun b -> b.ModelProperties |> List.contains prop)
-        let propBindings = props |> Array.map (fun p -> (p, bindingsFor p)) |> dict
-        let bindingsTriggered changes = changes |> Seq.collect (fst >> propBindings.get_Item) |> Seq.distinct
+        let bindingsTriggered changes =
+            let hasIntersection a b = a |> List.exists (fun ax -> b |> List.contains ax)
+            let changed = changes |> Seq.map fst |> Seq.toList
+            bindings |> Array.filter (fun b -> b.ModelProperties |> hasIntersection changed)
 
         let modelSubject = new BehaviorSubject<'Model>(initialModel) |> Signal
 
