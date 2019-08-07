@@ -9,26 +9,6 @@ open VinylUI
 open VinylUI.WinForms
 open BindingTestUtil
 
-let books = [ 
-    { Id = 27; Name = "Programming For the Brave and True" }
-    { Id = 53; Name = "Something Like That" } 
-]
-
-let bookObjs = books |> List.map (fun b -> BookObj(b.Id, b.Name))
-
-let model = {
-    Id = 2
-    Name = "Dan"
-    NickName = Some "D"
-    Age = Some 30
-    AgeResult = Ok 30
-    Books = books
-    BookObjs = bookObjs
-    BookIndex = -1
-    BookSelection = None
-    BookValue = None
-}
-
 // view stuff
 
 type NumberBox() =
@@ -63,14 +43,13 @@ type FakeForm() =
     member val ListBox = new ListBox() |> init
     member val NumberBox = new NumberBox() |> init
     member val ComboBox = new ComboBox() |> init
-    member val CustomTextControl = InpcControl("")
-    member val CustomIntControl = InpcControl(Nullable<int>())
 
     interface IDisposable with
         member this.Dispose() =
             this.TextBox.Dispose()
             this.ListBox.Dispose()
             this.NumberBox.Dispose()
+            this.ComboBox.Dispose()
 
 let updateControl (cp: BindViewPart<Control, _>) =
     let notify = typedefof<Control>.GetMethod("NotifyValidating", BindingFlags.Instance ||| BindingFlags.NonPublic)
@@ -95,14 +74,6 @@ let ``Bind matching properties two-way`` sourceUpdate =
     binding |> testModelToView viewExpr model.Name "Bob" "Bob"
     binding |> testViewToModel sourceUpdate viewExpr model.Name "Cat" "Cat"
 
-[<Test>]
-let ``Bind matching properties two-way for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomTextControl.Value @>
-    let binding = Bind.viewInpc(viewExpr).toModel(<@ model.Name @>)
-    binding |> testModelToView viewExpr model.Name "Bob" "Bob"
-    binding |> testViewInpcToModel viewExpr model.Name "Cat" "Cat"
-
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind nullable to option two-way`` sourceUpdate =
     use form = new FakeForm()
@@ -111,14 +82,6 @@ let ``Bind nullable to option two-way`` sourceUpdate =
     binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
     binding |> testViewToModel sourceUpdate viewExpr model.Age (Nullable 32) (Some 32)
 
-[<Test>]
-let ``Bind nullable to option two-way for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomIntControl.Value @>
-    let binding = Bind.viewInpc(viewExpr).toModel(<@ model.Age @>)
-    binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
-    binding |> testViewInpcToModel viewExpr model.Age (Nullable 32) (Some 32)
-
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind string to string option two-way`` sourceUpdate =
     use form = new FakeForm()
@@ -126,14 +89,6 @@ let ``Bind string to string option two-way`` sourceUpdate =
     let binding = Bind.view(viewExpr).toModel(<@ model.NickName@>, sourceUpdate)
     binding |> testModelToView viewExpr "D" (None) ("")
     binding |> testViewToModel sourceUpdate viewExpr model.NickName (null) (None)
-
-[<Test>]
-let ``Bind string to string option two-way for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomTextControl.Value @>
-    let binding = Bind.viewInpc(viewExpr).toModel(<@ model.NickName @>)
-    binding |> testModelToView viewExpr "D" (Some "Chip Jiggins") ("Chip Jiggins")
-    binding |> testViewInpcToModel viewExpr model.NickName (" ") (None)
 
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind obj to val type two-way`` sourceUpdate =
@@ -207,15 +162,6 @@ let ``Bind matching properties one way to model`` sourceUpdate =
     binding |> testNonModelToView viewExpr "" "Cat"
     binding |> testViewToModel sourceUpdate viewExpr model.Name "Bob" "Bob"
 
-[<Test>]
-let ``Bind matching properties one way to model for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomTextControl.Value @>
-    let binding = Bind.viewInpc(viewExpr).toModelOneWay(<@ model.Name @>)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
-    binding |> testNonModelToView viewExpr "" "Cat"
-    binding |> testViewInpcToModel viewExpr model.Name "Bob" "Bob"
-
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind nullable to option one way to model`` sourceUpdate =
     use form = new FakeForm()
@@ -223,14 +169,6 @@ let ``Bind nullable to option one way to model`` sourceUpdate =
     let binding = Bind.view(viewExpr).toModelOneWay(<@ model.Age @>, sourceUpdate)
     binding |> testNonModelToView viewExpr (Nullable()) (Some 31)
     binding |> testViewToModel sourceUpdate viewExpr model.Age (Nullable 32) (Some 32)
-
-[<Test>]
-let ``Bind nullable to option one way to model for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomIntControl.Value @>
-    let binding = Bind.viewInpc(viewExpr).toModelOneWay(<@ model.Age @>)
-    binding |> testNonModelToView viewExpr (Nullable()) (Some 31)
-    binding |> testViewInpcToModel viewExpr model.Age (Nullable 32) (Some 32)
 
 [<TestCaseSource("sourceUpdateModes")>]
 let ``Bind obj to val type one way to model`` sourceUpdate =
@@ -303,29 +241,12 @@ let ``Bind matching properties one way to view`` () =
     binding |> testNonViewToModel viewExpr model.Name "Cat"
 
 [<Test>]
-let ``Bind matching properties one way to view for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomTextControl.Value @>
-    let binding = Bind.model(<@ model.Name @>).toViewInpcOneWay(viewExpr)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
-    binding |> testModelToView viewExpr model.Name "Bob" "Bob"
-    binding |> testNonViewInpcToModel viewExpr model.Name "Cat"
-
-[<Test>]
 let ``Bind nullable to option one way to view`` () =
     use form = new FakeForm()
     let viewExpr = <@ form.NumberBox.Value @>
     let binding = Bind.model(<@ model.Age @>).toViewOneWay(viewExpr)
     binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
     binding |> testNonViewToModel viewExpr model.Age (Nullable 32)
-
-[<Test>]
-let ``Bind nullable to option one way to view for custom control`` () =
-    use form = new FakeForm()
-    let viewExpr = <@ form.CustomIntControl.Value @>
-    let binding = Bind.model(<@ model.Age @>).toViewInpcOneWay(viewExpr)
-    binding |> testModelToView viewExpr (Option.toNullable model.Age) (Some 31) (Nullable 31)
-    binding |> testNonViewInpcToModel viewExpr model.Age (Nullable 32)
 
 [<Test>]
 let ``Bind obj to val type one way to view`` () =
@@ -363,22 +284,6 @@ let ``Bind obj to ref type option one way to view`` () =
     let binding = Bind.model(<@ model.NickName @>).toViewOneWay(viewExpr)
     binding |> testModelToView viewExpr (model.NickName |> Option.toObj |> box) (Some "J") (box "J")
     binding |> testNonViewToModel viewExpr model.NickName (box "M")
-
-// model to func
-
-[<Test>]
-let ``Bind model to func`` () =
-    let mutable fVal = None
-    let mutable fCount = 0
-    let f n =
-        fVal <- Some n
-        fCount <- fCount + 1
-    let binding = Bind.model(<@ model.Name @>).toFunc(f)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
-    use __ = binding |> onViewChanged (fun _ -> failwith "view should not be updated here")
-    (fVal, fCount) |> shouldEqual (Some model.Name, 1)
-    binding.SetView (box "Bob")
-    (fVal, fCount) |> shouldEqual (Some "Bob", 2)
 
 // model to data source
 
@@ -477,12 +382,3 @@ let ``Model to view correctly updates SelectedValue to null`` controlType =
 
     binding |> testModelToView viewExpr (model.BookValue |> Option.toNullable |> box) (Some bookObjs.[1].Id) (bookObjs.[1].Id |> box)
     binding |> testModelToView viewExpr (bookObjs.[1].Id |> box) None (null |> box)
-
-// helper tests
-
-[<Test>]
-let ``BindingConvert option converters for record option type handles nulls`` () =
-    let toOption = BindingConvert.objToOption<Book option> ()
-    let fromOption = BindingConvert.objFromOption<Book option> ()
-    toOption null |> shouldEqual None
-    fromOption None |> shouldEqual null

@@ -1,6 +1,5 @@
-﻿module FrameworkTests
+module FrameworkTests
 
-open System.ComponentModel
 open NUnit.Framework
 open FsUnitTyped
 open VinylUI
@@ -11,6 +10,8 @@ type MyModel = {
 }
 with
     member this.Display = sprintf "%s: %i" this.Name this.Score
+
+    static member Default = { Name = "Bob"; Score = 1 }
 
     static member NameProperty = typeof<MyModel>.GetProperty("Name")
     static member ScoreProperty = typeof<MyModel>.GetProperty("Score")
@@ -27,21 +28,6 @@ let ``Model.permute creates new model with new property value``() =
     newInt |> shouldEqual { original with Score = 7 }
 
 
-type Control<'a when 'a : equality>(initValue: 'a) =
-    let mutable value = initValue
-    let changed = Event<_,_>()
-
-    member this.Value
-        with get () = value
-        and set v =
-            if value <> v then
-                value <- v
-                changed.Trigger(null, PropertyChangedEventArgs("Value"))
-
-    interface INotifyPropertyChanged with
-        [<CLIEvent>]
-        member this.PropertyChanged = changed.Publish
-
 type MyView() =
     let add = Event<int>()
     let reset = Event<unit>()
@@ -50,27 +36,27 @@ type MyView() =
     member val WasReset = reset.Publish
     member this.Reset () = reset.Trigger ()
 
-    member val NameBox = Control<string>("")
-    member val NameLabel = Control<string>("")
-    member val ScoreInput = Control<int>(0)
-    member val ScoreDisplay = Control<string>("")
-    member val ScoreDisplay2 = Control<string>("")
+    member val NameBox = InpcControl<string>("")
+    member val NameLabel = InpcControl<string>("")
+    member val ScoreInput = InpcControl<int>(0)
+    member val ScoreDisplay = InpcControl<string>("")
+    member val ScoreDisplay2 = InpcControl<string>("")
 
 type MyEvents =
     | Add of int
     | Reset
 
-let initModel = { Name = "Bob"; Score = 1 }
-let view = MyView()
+[<Test>]
+let ``Framework.start and full Sync exercise`` () =
+    let mutable multiBindCalls = 0
 
-let start multiBindCallback initModel =
     let binder (view: MyView) (model: MyModel) =
         [ Bind.viewInpc(<@ view.NameBox.Value @>).toModel(<@ model.Name @>)
           Bind.viewInpc(<@ view.ScoreInput.Value @>).toModelOneWay(<@ model.Score @>)
           Bind.model(<@ model.Display @>).toViewInpcOneWay(<@ view.ScoreDisplay.Value @>)
           Bind.model(<@ model.Name @>).toViewInpcOneWay(<@ view.NameLabel.Value @>)
           Bind.modelMulti(<@ model.Name, model.Score, model.Display @>).toFunc(fun (name, score, disp) ->
-            multiBindCallback ()
+            multiBindCalls <- multiBindCalls + 1
             view.ScoreDisplay2.Value <- sprintf "%s scored %i" name score
           )
         ]
@@ -82,15 +68,10 @@ let start multiBindCallback initModel =
 
     let dispatcher = function
         | Add i -> Sync (fun m -> { m with Score = m.Score + i })
-        | Reset -> Sync (fun _ -> initModel)
+        | Reset -> Sync (fun _ -> MyModel.Default)
 
-    Framework.start binder events dispatcher view initModel
-
-[<Test>]
-let ``Framework.start and full Sync exercise`` () =
-    let mutable multiBindCalls = 0
-    let callback () = multiBindCalls <- multiBindCalls + 1
-    let model, sub = start callback initModel
+    let view = MyView()
+    let model, sub = Framework.start binder events dispatcher view MyModel.Default
     use __ = sub
 
     // creating the bindings should have updated the view...
@@ -140,7 +121,8 @@ let ``Framework.start does not fire to-view binding on same property from view c
     let events _ = []
     let dispatcher _ = Sync id
 
-    let model, sub = Framework.start binder events dispatcher view initModel
+    let view = MyView()
+    let model, sub = Framework.start binder events dispatcher view MyModel.Default
     use __ = sub
 
     bindingSetView |> shouldEqual 1
@@ -151,8 +133,7 @@ let ``Framework.start does not fire to-view binding on same property from view c
 let ``Model-to-view bindings fire in the order they are given`` () =
     let mutable triggered = []
     let binder (view: MyView) (model: MyModel) =
-        [
-          Bind.model(<@ model.Score @>).toFunc(fun _ -> triggered <- triggered @ ["Score"])
+        [ Bind.model(<@ model.Score @>).toFunc(fun _ -> triggered <- triggered @ ["Score"])
           Bind.model(<@ model.Name @>).toFunc(fun _ -> triggered <- triggered @ ["Name"])
         ]
 
@@ -160,9 +141,10 @@ let ``Model-to-view bindings fire in the order they are given`` () =
         [ view.WasReset |> Observable.mapTo Reset ]
 
     let dispatcher = function
-        | Reset -> Sync (fun _ -> initModel)
+        | Reset -> Sync (fun _ -> MyModel.Default)
         | _ -> Sync id
 
+    let view = MyView()
     let model, sub = Framework.start binder events dispatcher view { Name = "Chad"; Score = 2 }
     use __ = sub
     triggered |> shouldEqual ["Score"; "Name"]

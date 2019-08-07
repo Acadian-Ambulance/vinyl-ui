@@ -10,26 +10,6 @@ open VinylUI.Wpf
 open BindingTestUtil
 open System.Windows
 
-let books = [ 
-    { Id = 27; Name = "Programming For the Brave and True" }
-    { Id = 53; Name = "Something Like That" } 
-]
-
-let bookObjs = books |> List.map (fun b -> BookObj(b.Id, b.Name))
-
-let model = {
-    Id = 2
-    Name = "Dan"
-    NickName = Some "D"
-    Age = Some 30
-    AgeResult = Ok 30
-    Books = books
-    BookObjs = bookObjs
-    BookIndex = -1
-    BookSelection = None
-    BookValue = None
-}
-
 type NumberBox() =
     inherit TextBox()
 
