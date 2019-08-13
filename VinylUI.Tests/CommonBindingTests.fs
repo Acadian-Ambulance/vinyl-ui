@@ -5,6 +5,34 @@ open NUnit.Framework
 open FsUnitTyped
 open VinylUI
 open BindingTestUtil
+open BindingPatterns
+
+// pattern tests
+
+type ScoreModel = FrameworkTests.ScoreModel
+type ScoreBoardModel = FrameworkTests.ScoreboardModel
+
+[<Test>]
+let ``PropertyChainExpression parses correctly`` () =
+    let model = ScoreBoardModel.Default
+    match <@ model.Home.Name @> with
+    | PropertyChainExpression (src, chain) ->
+        chain |> shouldEqual (PropertyChain [ScoreBoardModel.HomeProperty; ScoreModel.NameProperty])
+        src |> shouldEqual (box model)
+    | _ -> failwith "Quotation did not parse"
+
+[<Test>]
+let ``PropertyTupleExpression parses correctly`` () =
+    let model = ScoreBoardModel.Default
+    match <@ model.Home.Name, model.Away.Score @> with
+    | PropertyTupleExpression (src, chains) ->
+        chains |> shouldEqual [
+            PropertyChain [ScoreBoardModel.HomeProperty; ScoreModel.NameProperty]
+            PropertyChain [ScoreBoardModel.AwayProperty; ScoreModel.ScoreProperty]
+        ]
+        src |> shouldEqual (box model)
+    | _ -> failwith "Quotation did not parse"
+
 
 // helper tests
 
@@ -54,7 +82,7 @@ let ``Bind matching properties one way to model for INotifyPropertyChanged contr
     let view = new FakeView()
     let viewExpr = <@ view.StringControl.Value @>
     let binding = Bind.viewInpc(viewExpr).toModelOneWay(<@ model.Name @>)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.NameProperty]
     binding |> testNonModelToView viewExpr "" "Cat"
     binding |> testViewInpcToModel viewExpr model.Name "Bob" "Bob"
 
@@ -73,7 +101,7 @@ let ``Bind matching properties one way to view for INotifyPropertyChanged contro
     let view = new FakeView()
     let viewExpr = <@ view.StringControl.Value @>
     let binding = Bind.model(<@ model.Name @>).toViewInpcOneWay(viewExpr)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.NameProperty]
     binding |> testModelToView viewExpr model.Name "Bob" "Bob"
     binding |> testNonViewInpcToModel viewExpr model.Name "Cat"
 
@@ -95,7 +123,7 @@ let ``Bind model to func`` () =
         fVal <- Some n
         fCount <- fCount + 1
     let binding = Bind.model(<@ model.Name @>).toFunc(f)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.NameProperty]
     use __ = binding |> onViewChanged (fun _ -> failwith "view should not be updated here")
     (fVal, fCount) |> shouldEqual (Some model.Name, 1)
     binding.SetView (box "Bob")

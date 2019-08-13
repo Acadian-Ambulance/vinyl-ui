@@ -52,7 +52,7 @@ let ``Bind matching properties two-way`` sourceUpdate =
     let window = new FakeWindow()
     let viewExpr = <@ window.TextBox.Text @>
     let binding = Bind.view(viewExpr).toModel(<@ model.Name @>, sourceUpdate)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.NameProperty]
     binding |> testModelToView viewExpr model.Name "Bob" "Bob"
     binding |> testViewToModel sourceUpdate viewExpr model.Name "Cat" "Cat"
 
@@ -70,7 +70,7 @@ let ``Bind obj to val type two-way`` sourceUpdate =
     window.ListBox.ItemsSource <- [ 0 .. 100 ] |> List.toArray
     let viewExpr = <@ window.ListBox.SelectedItem @>
     let binding = Bind.view(viewExpr).toModel(<@ model.Id @>, sourceUpdate)
-    binding.ModelProperties |> shouldEqual [Model.IdProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.IdProperty]
     binding |> testModelToView viewExpr (box model.Id) 3 (box 3)
     binding |> testViewToModel sourceUpdate viewExpr model.Id (box 4) 4
 
@@ -113,7 +113,7 @@ let ``Bind string to int two-way with validation`` sourceUpdate =
         | true, _ -> Error nonPositiveError
         | false, _ -> Error parseError
     let binding = Bind.view(viewExpr).toModelResult(<@ model.AgeResult @>, validator, string, sourceUpdate)
-    binding.ModelProperties |> shouldEqual [Model.AgeResultProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.AgeResultProperty]
     let res r : Result<int, string> = r
     binding |> testModelToView viewExpr "30" (Ok 7 |> res) "7"
     binding |> testModelToView viewExpr "7" (Error "test" |> res) "7"
@@ -131,7 +131,7 @@ let ``Bind matching properties one way to model`` sourceUpdate =
     let window = new FakeWindow()
     let viewExpr = <@ window.TextBox.Text @>
     let binding = Bind.view(viewExpr).toModelOneWay(<@ model.Name @>, sourceUpdate)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.NameProperty]
     binding |> testNonModelToView viewExpr "" "Cat"
     binding |> testViewToModel sourceUpdate viewExpr model.Name "Bob" "Bob"
 
@@ -150,7 +150,7 @@ let ``Bind obj to val type one way to model`` sourceUpdate =
     window.ListBox.SelectedIndex <- 0
     let viewExpr = <@ window.ListBox.SelectedItem @>
     let binding = Bind.view(viewExpr).toModelOneWay(<@ model.Id @>, sourceUpdate)
-    binding.ModelProperties |> shouldEqual [Model.IdProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.IdProperty]
     binding |> testNonModelToView viewExpr (box 0) 3
     binding |> testViewToModel sourceUpdate viewExpr model.Id (box 4) 4
 
@@ -196,7 +196,7 @@ let ``Bind string to int one way to model with validation`` sourceUpdate =
         | true, _ -> Error nonPositiveError
         | false, _ -> Error parseError
     let binding = Bind.view(viewExpr).toModelResultOneWay(<@ model.AgeResult @>, validator, sourceUpdate)
-    binding.ModelProperties |> shouldEqual [Model.AgeResultProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.AgeResultProperty]
     binding |> testNonModelToView viewExpr "" (Ok 7)
     binding |> testViewToModel sourceUpdate viewExpr model.AgeResult "abc" (Error parseError)
     getErrors window.TextBox |> shouldEqual [parseError]
@@ -212,7 +212,7 @@ let ``Bind matching properties one way to view`` () =
     let window = new FakeWindow()
     let viewExpr = <@ window.TextBox.Text @>
     let binding = Bind.model(<@ model.Name @>).toViewOneWay(viewExpr)
-    binding.ModelProperties |> shouldEqual [Model.NameProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.NameProperty]
     binding |> testModelToView viewExpr model.Name "Bob" "Bob"
     binding |> testNonViewToModel viewExpr model.Name "Cat"
 
@@ -230,7 +230,7 @@ let ``Bind obj to val type one way to view`` () =
     window.ListBox.ItemsSource <- [ 0 .. 100 ] |> List.toArray
     let viewExpr = <@ window.ListBox.SelectedItem @>
     let binding = Bind.model(<@ model.Id @>).toViewOneWay(viewExpr)
-    binding.ModelProperties |> shouldEqual [Model.IdProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.IdProperty]
     binding |> testModelToView viewExpr (box model.Id) 3 (box 3)
     binding |> testNonViewToModel viewExpr model.Id (box 4)
 
@@ -268,7 +268,7 @@ let ``Bind model to ItemsSource`` () =
     let window = new FakeWindow()
     let getList () = window.ListBox.ItemsSource :?> Book seq |> Seq.toList
     let binding = Bind.model(<@ model.Books @>).toItemsSource(window.ListBox, <@ fun b -> b.Id, b.Name @>)
-    binding.ModelProperties |> shouldEqual [Model.BooksProperty]
+    binding.ModelProperties |> shouldEqual [chain Model.BooksProperty]
     getList () |> shouldEqual model.Books
 
     window.ListBox.SelectedIndex <- 0

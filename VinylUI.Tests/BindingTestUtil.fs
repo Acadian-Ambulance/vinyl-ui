@@ -4,6 +4,8 @@ open Microsoft.FSharp.Quotations
 open FsUnitTyped
 open VinylUI
 
+let chain prop = PropertyChain [prop]
+
 type Book = {
     Id: int
     Name: string

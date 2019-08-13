@@ -1,4 +1,4 @@
-﻿namespace VinylUI
+namespace VinylUI
 
 open System
 open System.ComponentModel
@@ -19,7 +19,7 @@ type BindingInfo<'Control, 'ControlProp, 'SourceProp> = {
     Control: 'Control
     ControlProperty: PropertyInfo
     Source: obj
-    SourceProperty: PropertyInfo
+    SourceProperty: PropertyChain
     BindingMode: BindingMode
     ConvertToSource: ('ControlProp -> 'SourceProp) option
     ConvertToControl: ('SourceProp -> 'ControlProp) option
@@ -32,12 +32,12 @@ type BindViewPart<'Control, 'View> = {
 
 type BindSourcePart<'Model> = {
     Source: obj
-    SourceProperty: PropertyInfo
+    SourceProperty: PropertyChain
 }
 
 type BindSourceMulti<'Model> = {
     Source: obj
-    SourceProperties: PropertyInfo list
+    SourceProperties: PropertyChain list
 }
 
 module BindingPatterns =
@@ -49,21 +49,33 @@ module BindingPatterns =
             Some (QuotationEvaluator.EvaluateUntyped source, propInfo)
         | _ -> None
 
-    let rec (|PropertyListExpression|_|) = function
-        | PropertyGet (_, p, []) :: PropertyListExpression rest ->
-            Some (p :: rest)
+    let rec private (|PropertyChainExpr|_|) = function
+        | PropertyGet (Some source, propInfo, []) ->
+            match source with
+            | PropertyChainExpr (source, chain: PropertyChain) ->
+                Some (source, chain.Append propInfo)
+            | _ ->
+                Some (source, PropertyChain [propInfo])
+        | _ -> None
+
+    let (|PropertyChainExpression|_|) = function
+        | PropertyChainExpr (source, chain) -> Some (QuotationEvaluator.EvaluateUntyped source, chain)
+        | _ -> None
+
+    let rec private (|PropertyListExpression|_|) = function
+        | PropertyChainExpr (_, chain) :: PropertyListExpression rest -> Some (chain :: rest)
         | [] -> Some []
+        | _ -> None
+
+    let (|PropertyTupleExpression|_|) expr =
+        match expr with
+        | NewTuple (PropertyChainExpression (source, prop1) :: PropertyListExpression props) ->
+            Some (source, prop1 :: props)
         | _ -> None
 
     let (|PropertyTupleSelector|_|) = function
         | Lambda (_, NewTuple [PropertyGet (_, displayProp, []); PropertyGet (_, valueProp, [])]) ->
             Some (displayProp, valueProp)
-        | _ -> None
-
-    let (|PropertyTupleExpression|_|) expr =
-        match expr with
-        | NewTuple (PropertyGet (Some source, prop1, []) :: PropertyListExpression props) ->
-            Some (QuotationEvaluator.EvaluateUntyped source, prop1 :: props)
         | _ -> None
 
 type BindingProxy(initValue) =
@@ -126,7 +138,7 @@ module CommonBinding =
     let createProxy createBinding (bindInfo: BindingInfo<_, _, _>) =
         let value = bindInfo.SourceProperty.GetValue bindInfo.Source
         let proxy = BindingProxy value
-        let proxyBindInfo = { bindInfo with Source = proxy; SourceProperty = BindingProxy.Property }
+        let proxyBindInfo = { bindInfo with Source = proxy; SourceProperty = PropertyChain [BindingProxy.Property] }
         createBinding proxyBindInfo
         let viewChanged =
             match bindInfo.BindingMode with
@@ -146,7 +158,7 @@ module CommonBinding =
 
     let modelPart (modelProperty: Expr<'Model>) : BindSourcePart<'Model> =
         match modelProperty with
-        | PropertyExpression (src, srcProp) ->
+        | PropertyChainExpression (src, srcProp) ->
             { Source = src; SourceProperty = srcProp }
         | _ -> failwithf "Expected a quoted property access, example <@ model.Property @>, but got invalid expression: %A"
                          modelProperty
@@ -192,8 +204,12 @@ module CommonBinding =
         let updateViewOnModelChange () =
             match bi.Source with
             | :? INotifyPropertyChanged as source ->
-                source.PropertyChanged.Add <| fun e ->
-                    if e.PropertyName = bi.SourceProperty.Name then updateView ()
+                match bi.SourceProperty.Chain with
+                | [prop] ->
+                    source.PropertyChanged.Add <| fun e ->
+                        if e.PropertyName = prop.Name then updateView ()
+                | [] -> failwith "Source property must be specified for to-view binding"
+                | _ -> failwith "Cannot use source property chain for to-view binding"
             | _ -> failwith "Source must implement INotifyPropertyChanged for to-view binding"
 
         match bi.BindingMode with
