@@ -72,9 +72,14 @@ module WinFormsBinding =
             match b.ControlProperty.Name with
             | "Checked" -> DataSourceUpdateMode.OnPropertyChanged
             | _ -> DataSourceUpdateMode.OnValidation )
+        let sourcePropName =
+            match b.SourceProperty.Chain with
+            | [prop] -> prop.Name
+            | [] -> failwith "Cannot bind without a source property"
+            | _ -> failwith "Cannot bind to a source property chain"
         let controlBinding = WinBinding(b.ControlProperty.Name,
                                         b.Source,
-                                        b.SourceProperty.Name,
+                                        sourcePropName,
                                         true,
                                         sourceUpdate,
                                         ControlUpdateMode = controlUpdate)

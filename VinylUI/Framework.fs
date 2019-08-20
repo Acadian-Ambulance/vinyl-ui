@@ -5,9 +5,7 @@ open System.Reactive
 open System.Reactive.Subjects
 open System.Reactive.Linq
 open System.Runtime.ExceptionServices
-open System.Reflection
 open FSharp.Control
-open FSharp.Reflection
 
 type EventHandler<'Model> =
     | Sync of ('Model -> 'Model)
@@ -43,14 +41,16 @@ module Framework =
         | _ -> e
 
     let start binder events dispatcher (view: 'View) (initialModel: 'Model) =
-        let props = typedefof<'Model>.GetProperties(BindingFlags.Public ||| BindingFlags.Instance)
-        let fields = FSharpType.GetRecordFields(typeof<'Model>)
-        let computedProps = props |> Array.except fields
+        let props = Model.getProps typeof<'Model>
+        let computedProps = Model.getComputedProps typeof<'Model>
         let bindings = binder view initialModel |> Seq.toArray
-        let bindingsTriggered changes =
-            let hasIntersection a b = a |> List.exists (fun ax -> b |> List.contains ax)
+        let bindingsTriggered (changes: (PropertyChain * _) seq) =
             let changed = changes |> Seq.map fst |> Seq.toList
-            bindings |> Array.filter (fun b -> b.ModelProperties |> hasIntersection changed)
+            bindings |> Array.filter (fun b ->
+                b.ModelProperties
+                |> Seq.allPairs changed
+                |> Seq.exists (fun (change, bound) -> Seq.forall2 (=) bound.Chain change.Chain)
+            )
 
         let modelSubject = new BehaviorSubject<'Model>(initialModel) |> Signal
 
@@ -62,7 +62,7 @@ module Framework =
                 let prevModel = modelSubject.Value
                 modelSubject.Value <- Model.permute modelSubject.Value [| change |]
                 // update view for other bindings that changed
-                Model.diff (Array.append [| prop |] computedProps) prevModel modelSubject.Value
+                Model.diff (prop.Chain.Head :: computedProps) prevModel modelSubject.Value
                 |> bindingsTriggered
                 |> Seq.filter (fun b -> b.ModelProperties <> [prop] || b.ViewChanged.IsNone)
                 |> Model.updateView modelSubject.Value
