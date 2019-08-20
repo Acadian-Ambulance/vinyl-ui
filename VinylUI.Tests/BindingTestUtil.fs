@@ -1,9 +1,10 @@
 ﻿module BindingTestUtil
 
-open System.ComponentModel
 open Microsoft.FSharp.Quotations
 open FsUnitTyped
 open VinylUI
+
+let chain prop = PropertyChain [prop]
 
 type Book = {
     Id: int
@@ -34,20 +35,26 @@ with
     static member AgeResultProperty = typedefof<Model>.GetProperty("AgeResult")
     static member BooksProperty = typedefof<Model>.GetProperty("Books")
 
-type InpcControl<'a when 'a: equality>(initVal: 'a) =
-    let mutable value = initVal
-    let propChanged = Event<_,_>()
+let books = [ 
+    { Id = 27; Name = "Programming For the Brave and True" }
+    { Id = 53; Name = "Something Like That" } 
+]
 
-    member this.Value
-        with get () = value
-        and set v =
-            if value <> v then
-                value <- v
-                propChanged.Trigger(this, PropertyChangedEventArgs("Value"))
+let bookObjs = books |> List.map (fun b -> BookObj(b.Id, b.Name))
 
-    interface INotifyPropertyChanged with
-        [<CLIEvent>]
-        member this.PropertyChanged = propChanged.Publish
+let model = {
+    Id = 2
+    Name = "Dan"
+    NickName = Some "D"
+    Age = Some 30
+    AgeResult = Ok 30
+    Books = books
+    BookObjs = bookObjs
+    BookIndex = -1
+    BookSelection = None
+    BookValue = None
+}
+
 
 let controlGet cp = cp.ControlProperty.GetValue cp.Control
 let controlSet x cp = cp.ControlProperty.SetValue(cp.Control, x)

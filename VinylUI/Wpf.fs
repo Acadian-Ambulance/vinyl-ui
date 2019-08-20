@@ -116,7 +116,7 @@ module WpfBinding =
         let mode, sourceUpdate = getUpdateModes bi.BindingMode
         let binding = Binding()
         binding.Source <- bi.Source
-        binding.Path <- PropertyPath bi.SourceProperty.Name
+        binding.Path <- PropertyPath (bi.SourceProperty.Chain |> List.map (fun p -> p.Name) |> String.concat ".")
         binding.Mode <- mode
         binding.UpdateSourceTrigger <- sourceUpdate
         if bi.ConvertToControl.IsSome || bi.ConvertToSource.IsSome then

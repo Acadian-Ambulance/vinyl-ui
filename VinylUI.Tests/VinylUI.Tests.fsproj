@@ -56,8 +56,10 @@
     <None Include="paket.references" />
     <Content Include="App.config" />
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Prelude.fs" />
     <Compile Include="FrameworkTests.fs" />
     <Compile Include="BindingTestUtil.fs" />
+    <Compile Include="CommonBindingTests.fs" />
     <Compile Include="WinFormsTests.fs" />
     <Compile Include="WpfTests.fs" />
   </ItemGroup>
