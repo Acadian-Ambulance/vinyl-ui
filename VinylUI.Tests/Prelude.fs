@@ -14,6 +14,8 @@ type InpcControl<'a when 'a: equality>(initVal: 'a) =
                 value <- v
                 propChanged.Trigger(this, PropertyChangedEventArgs("Value"))
 
+    member this.ValueChanged = propChanged.Publish
+
     interface INotifyPropertyChanged with
         [<CLIEvent>]
-        member this.PropertyChanged = propChanged.Publish
+        member this.PropertyChanged = this.ValueChanged

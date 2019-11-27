@@ -53,26 +53,35 @@ module Framework =
             )
 
         let modelSubject = new BehaviorSubject<'Model>(initialModel) |> Signal
+        let mutable pendingBindings = []
 
         // subscribe to control changes to update the model
-        bindings |> Seq.iter (fun binding ->
+        bindings |> Array.iter (fun binding ->
             binding.ViewChanged |> Option.iter (fun vc -> vc.Add (fun value ->
                 let prop = binding.ModelProperties.Head // multi-binding from view not supported
-                let change = (prop, value)
-                let prevModel = modelSubject.Value
-                modelSubject.Value <- Model.permute modelSubject.Value [| change |]
-                // update view for other bindings that changed
-                Model.diff (prop.Chain.Head :: computedProps) prevModel modelSubject.Value
-                |> bindingsTriggered
-                |> Seq.filter (fun b -> b.ModelProperties <> [prop] || b.ViewChanged.IsNone)
-                |> Model.updateView modelSubject.Value
+                if not (pendingBindings |> List.contains prop) then
+                    let change = (prop, value)
+                    let prevModel = modelSubject.Value
+                    modelSubject.Value <- Model.permute modelSubject.Value [| change |]
+                    // update view for other bindings that changed
+                    Model.diff (prop.Chain.Head :: computedProps) prevModel modelSubject.Value
+                    |> bindingsTriggered
+                    |> Seq.filter (fun b -> b.ModelProperties <> [prop] || b.ViewChanged.IsNone)
+                    |> Seq.iter (Model.updateView modelSubject.Value)
             ))
         )
 
         let updateModel prevModel newModel =
             let changes = Model.diff props prevModel newModel |> Seq.toArray
             modelSubject.Value <- Model.permute modelSubject.Value changes
-            Model.updateView modelSubject.Value (bindingsTriggered changes)
+            let rec update bindings =
+                pendingBindings <- bindings |> List.collect (fun b -> b.ModelProperties)
+                match bindings with
+                | binding :: rest ->
+                    Model.updateView modelSubject.Value binding
+                    update rest
+                | [] -> ()
+            update (bindingsTriggered changes |> Seq.toList)
 
         let runSync handler =
             let handle () = 
