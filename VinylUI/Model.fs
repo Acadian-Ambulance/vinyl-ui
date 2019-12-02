@@ -78,7 +78,7 @@ module Model =
         let beforeVal = prop.GetValue before
         let afterVal = prop.GetValue after
         if beforeVal <> afterVal then
-            if FSharpType.IsRecord prop.PropertyType then
+            if FSharpType.IsRecord prop.PropertyType && prop.PropertyType <> prop.DeclaringType then
                 getProps prop.PropertyType
                 |> Seq.collect (change beforeVal afterVal)
                 |> Seq.map (fun (chain, value) -> (chain.Prepend prop, value))
@@ -90,11 +90,12 @@ module Model =
         props |> Seq.collect (change prevModel newModel)
 
     let getTupledValues model (props: PropertyChain seq) =
-        match props |> Seq.map (fun p -> p.GetValue model) |> Seq.toArray with
+        let props = props |> Seq.toArray
+        match props |> Array.map (fun p -> p.GetValue model) with
         | [| value |] -> value
         | values ->
-            let types = props |> Seq.map (fun p -> p.LastPropertyType) |> Seq.toArray
+            let types = props |> Array.map (fun p -> p.LastPropertyType)
             FSharpValue.MakeTuple(values, FSharpType.MakeTupleType(types))
 
-    let updateView model bindings =
-        bindings |> Seq.iter (fun b -> getTupledValues model b.ModelProperties |> b.SetView)
+    let updateView model binding =
+        getTupledValues model binding.ModelProperties |> binding.SetView

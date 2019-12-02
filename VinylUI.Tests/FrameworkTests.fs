@@ -63,6 +63,21 @@ let ``Model.diff nested model returns change for only nested property``() =
     ]
     changes |> Seq.toList |> shouldEqual expected
 
+type RecursiveModel = {
+    Counter: int
+}
+with
+    member this.Increment = { this with Counter = this.Counter + 1 }
+    static member IncrementProperty = typeof<RecursiveModel>.GetProperty("Increment")
+
+[<Test>]
+let ``Model.diff on model with property of same type does not recurse infinitely`` () =
+    let before = { Counter = 0 }
+    let after = { Counter = 1 }
+    let changes = Model.diff [RecursiveModel.IncrementProperty] before after |> Seq.toList
+    let expected = [ (PropertyChain [RecursiveModel.IncrementProperty], after.Increment |> box) ]
+    changes |> shouldEqual expected
+
 
 type MyView() =
     let add = Event<int>()
@@ -188,6 +203,40 @@ let ``Model-to-view bindings fire in the order they are given`` () =
     triggered <- []
     view.Reset()
     triggered |> shouldEqual ["Score"; "Name"]
+
+[<Test>]
+let ``View properties that change other properties bound to model don't overwrite a change`` () =
+    let binder (view: MyView) (model: ScoreModel) =
+        // hook up changes to one view property to affect another
+        // a more realistic scenario is a ListBox's DataSource affecting its own SelectedItem
+        view.ScoreDisplay.ValueChanged.Add (fun _ -> view.NameLabel.Value <- view.ScoreDisplay.Value)
+
+        [ Bind.model(<@ model.Score @>).toFunc(fun s -> view.ScoreDisplay.Value <- string s)
+          Bind.viewInpc(<@ view.NameLabel.Value @>).toModel(<@ model.Name @>)
+        ]
+
+    let events (view: MyView) =
+        [ view.Added |> Observable.map Add ]
+
+    let add i model =
+        let newScore = model.Score + i
+        { Score = newScore; Name = "Score: " + (string newScore) }
+
+    let dispatcher = function
+        | Add i -> Sync (add i)
+        | Reset -> Sync id
+
+    let view = MyView()
+    let model, sub = Framework.start binder events dispatcher view { Score = 2; Name = "Score: 2" }
+    use __ = sub
+    view.ScoreDisplay.Value |> shouldEqual "2"
+    view.NameLabel.Value |> shouldEqual "Score: 2"
+
+    view.Add 1
+    view.ScoreDisplay.Value |> shouldEqual "3"
+    view.NameLabel.Value |> shouldEqual "Score: 3"
+    // make sure that the binding to Name does not overwrite our change to the model
+    model.Value |> shouldEqual { Score = 3; Name = "Score: 3" }
 
 
 [<Test>]
