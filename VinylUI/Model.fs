@@ -78,7 +78,7 @@ module Model =
         let beforeVal = prop.GetValue before
         let afterVal = prop.GetValue after
         if beforeVal <> afterVal then
-            if FSharpType.IsRecord prop.PropertyType then
+            if FSharpType.IsRecord prop.PropertyType && prop.PropertyType <> prop.DeclaringType then
                 getProps prop.PropertyType
                 |> Seq.collect (change beforeVal afterVal)
                 |> Seq.map (fun (chain, value) -> (chain.Prepend prop, value))

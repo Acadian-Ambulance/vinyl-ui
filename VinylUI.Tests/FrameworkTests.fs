@@ -63,6 +63,21 @@ let ``Model.diff nested model returns change for only nested property``() =
     ]
     changes |> Seq.toList |> shouldEqual expected
 
+type RecursiveModel = {
+    Counter: int
+}
+with
+    member this.Increment = { this with Counter = this.Counter + 1 }
+    static member IncrementProperty = typeof<RecursiveModel>.GetProperty("Increment")
+
+[<Test>]
+let ``Model.diff on model with property of same type does not recurse infinitely`` () =
+    let before = { Counter = 0 }
+    let after = { Counter = 1 }
+    let changes = Model.diff [RecursiveModel.IncrementProperty] before after |> Seq.toList
+    let expected = [ (PropertyChain [RecursiveModel.IncrementProperty], after.Increment |> box) ]
+    changes |> shouldEqual expected
+
 
 type MyView() =
     let add = Event<int>()
