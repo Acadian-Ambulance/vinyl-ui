@@ -10,6 +10,10 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ContactsManager", "Contacts
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "VinylUI", "..\..\VinylUI\VinylUI.fsproj", "{48999CC6-FCCC-46D7-9E2B-31470E1539E4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ContactsManagerUI", "ContactsManagerUI\ContactsManagerUI.csproj", "{C830E296-FA35-4CA9-B23A-81EFF1EC70DE}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ContactsManagerDomain", "ContactsManagerDomain\ContactsManagerDomain.fsproj", "{D3DCABEF-8848-4706-9A4C-AFF91CEDFBE9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,6 +28,14 @@ Global
 		{48999CC6-FCCC-46D7-9E2B-31470E1539E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{48999CC6-FCCC-46D7-9E2B-31470E1539E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{48999CC6-FCCC-46D7-9E2B-31470E1539E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C830E296-FA35-4CA9-B23A-81EFF1EC70DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C830E296-FA35-4CA9-B23A-81EFF1EC70DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C830E296-FA35-4CA9-B23A-81EFF1EC70DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C830E296-FA35-4CA9-B23A-81EFF1EC70DE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D3DCABEF-8848-4706-9A4C-AFF91CEDFBE9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3DCABEF-8848-4706-9A4C-AFF91CEDFBE9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3DCABEF-8848-4706-9A4C-AFF91CEDFBE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3DCABEF-8848-4706-9A4C-AFF91CEDFBE9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

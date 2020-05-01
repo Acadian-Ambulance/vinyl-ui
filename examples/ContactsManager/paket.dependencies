@@ -4,5 +4,4 @@ framework: auto-detect
 nuget System.Reactive ~> 4.1.6
 nuget FSharp.Control.AsyncSeq
 nuget FSharp.Quotations.Evaluator 1.1.3
-nuget FsXaml.Wpf
 nuget Newtonsoft.Json
