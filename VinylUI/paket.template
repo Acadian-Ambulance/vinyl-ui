@@ -1,3 +1,4 @@
 type project
+authors Acadian Ambulance Service
 projectUrl https://github.com/Acadian-Ambulance/vinyl-ui
 licenseUrl http://opensource.org/licenses/MIT

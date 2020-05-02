@@ -2,3 +2,5 @@ System.Reactive
 FSharp.Control.AsyncSeq
 NUnit
 FsUnit
+NUnit3TestAdapter
+Microsoft.NET.Test.Sdk
