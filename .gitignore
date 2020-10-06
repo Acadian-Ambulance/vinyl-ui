@@ -245,10 +245,6 @@ _Pvt_Extensions
 # Paket dependency manager
 paket-files/
 **/paket-files/
-Paket.Restore.targets
-
-# FAKE - F# Make
-.fake/
 
 # JetBrains Rider
 .idea/
@@ -260,3 +256,6 @@ Paket.Restore.targets
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+
+.fake
+.ionide

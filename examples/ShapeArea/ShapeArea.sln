@@ -1,13 +1,16 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27428.2037
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29905.134
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "VinylUI", "..\..\VinylUI\VinylUI.fsproj", "{48999CC6-FCCC-46D7-9E2B-31470E1539E4}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "VinylUI", "..\..\VinylUI\VinylUI.fsproj", "{48999CC6-FCCC-46D7-9E2B-31470E1539E4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShapeArea.Forms", "ShapeArea.Forms\ShapeArea.Forms.csproj", "{7589E52E-0012-43ED-BFEC-3E0911A2ECAD}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ShapeArea", "ShapeArea\ShapeArea.fsproj", "{661434D9-7105-4145-A040-03DD9ACDDB0D}"
+	ProjectSection(ProjectDependencies) = postProject
+		{48999CC6-FCCC-46D7-9E2B-31470E1539E4} = {48999CC6-FCCC-46D7-9E2B-31470E1539E4}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

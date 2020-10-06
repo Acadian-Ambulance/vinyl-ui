@@ -18,7 +18,7 @@ type Events =
     | DeleteContact of Contact
 
 /// View type (window) for Contact Manager
-type View = FsXaml.XAML<"ContactManagerWindow.xaml">
+type View = ContactsManagerUI.ContactManagerWindow
 
 /// View binder function where we create bindings between window controls and model properties.
 /// We also do other view setup here.

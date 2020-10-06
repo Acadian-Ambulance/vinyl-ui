@@ -1,6 +1,6 @@
 ## VinylUI - Framework for F# Desktop Applications
 
-VinylUI is a framework for building WPF and Windows Forms applications that embraces functional paradigms and MVC-like separation of responsibilites.
+VinylUI is a framework for building WPF and Windows Forms applications in F# that embraces functional paradigms and MVC-like separation of responsibilites. It supports .NET Core 3 and .NET Framework 4.6+.
 
 Code for a window or form is split into the following parts:
 

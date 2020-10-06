@@ -4,6 +4,11 @@ open Microsoft.FSharp.Quotations
 open FsUnitTyped
 open VinylUI
 
+let intParse (s: string) =
+    match System.Int32.TryParse(s) with
+    | true, i -> Some i
+    | false, _ -> None
+
 let chain prop = PropertyChain [prop]
 
 type Book = {
