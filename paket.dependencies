@@ -3,9 +3,9 @@ source https://www.nuget.org/api/v2/
 framework: auto-detect
 storage: none
 
-nuget System.Reactive ~> 4.1.6
+nuget System.Reactive ~> 4.1
 nuget FSharp.Control.AsyncSeq ~> 2.0.22
-nuget FSharp.Quotations.Evaluator ~> 1.1.3
+nuget FSharp.Quotations.Evaluator ~> 2.1
 
 nuget FsUnit
 nuget NUnit3TestAdapter
