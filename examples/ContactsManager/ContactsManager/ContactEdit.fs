@@ -45,7 +45,7 @@ module Errors =
     let nameBlank typ = Error <| sprintf "%s name cannot be blank" typ
 
 /// View type (window) for Contact Edit
-type View = FsXaml.XAML<"ContactEditWindow.xaml">
+type View = ContactsManagerUI.ContactEditWindow
 
 /// View binder function where we create bindings between window controls and model properties.
 /// We also do other view setup here.

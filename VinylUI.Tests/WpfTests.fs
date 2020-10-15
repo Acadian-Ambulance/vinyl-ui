@@ -108,10 +108,10 @@ let ``Bind string to int two-way with validation`` sourceUpdate =
     let parseError = "must be a valid integer"
     let nonPositiveError = "must be positive"
     let validator s =
-        match System.Int32.TryParse(s) with
-        | true, i when i > 0 -> Ok i
-        | true, _ -> Error nonPositiveError
-        | false, _ -> Error parseError
+        match intParse s with
+        | Some i when i > 0 -> Ok i
+        | Some _ -> Error nonPositiveError
+        | None -> Error parseError
     let binding = Bind.view(viewExpr).toModelResult(<@ model.AgeResult @>, validator, string, sourceUpdate)
     binding.ModelProperties |> shouldEqual [chain Model.AgeResultProperty]
     let res r : Result<int, string> = r
@@ -191,10 +191,10 @@ let ``Bind string to int one way to model with validation`` sourceUpdate =
     let parseError = "must be a valid integer"
     let nonPositiveError = "must be positive"
     let validator s =
-        match System.Int32.TryParse(s) with
-        | true, i when i > 0 -> Ok i
-        | true, _ -> Error nonPositiveError
-        | false, _ -> Error parseError
+        match intParse s with
+        | Some i when i > 0 -> Ok i
+        | Some _ -> Error nonPositiveError
+        | None -> Error parseError
     let binding = Bind.view(viewExpr).toModelResultOneWay(<@ model.AgeResult @>, validator, sourceUpdate)
     binding.ModelProperties |> shouldEqual [chain Model.AgeResultProperty]
     binding |> testNonModelToView viewExpr "" (Ok 7)
