@@ -125,9 +125,27 @@ module Framework =
 
         (modelSubject :> ISignal<'Model>, subscription)
 
+/// Computation builder that allows creating of asynchronous sequences using the 'asyncSeq { ... }' syntax
+/// This is a "fixed" version without the value-ignoring Return present in FSharp.Control.AsyncSeq 2.x
+type FixedAsyncSeqBuilder() =
+    let builder = AsyncSeq.AsyncSeqBuilder()
+
+    member _.Bind (source, body) = builder.Bind (source, body)
+    member _.Combine (seq1, seq2) = builder.Combine (seq1, seq2)
+    member _.Delay f = builder.Delay f
+    member _.For (source: 'a seq, action) = builder.For (source, action)
+    member _.For (source: 'a AsyncSeq, action) = builder.For (source, action)
+    member _.TryFinally (body, comp) = builder.TryFinally (body, comp)
+    member _.TryWith (body, handler) = builder.TryWith (body, handler)
+    member _.Using (resource, binder) = builder.Using (resource, binder)
+    member _.While (guard, body) = builder.While (guard, body)
+    member _.Yield value = builder.Yield value
+    member _.YieldFrom source = builder.YieldFrom source
+    member _.Zero () = builder.Zero ()
+
 [<AutoOpen>]
 module Prelude =
-    let asyncSeq = FSharp.Control.AsyncSeqExtensions.asyncSeq
+    let asyncSeq = FixedAsyncSeqBuilder()
 
 [<RequireQualifiedAccess>]
 module Observable =
